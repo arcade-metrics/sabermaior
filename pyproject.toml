@@ -24,4 +24,4 @@ espirita-rag = "rag.cli:main"
 packages = ["ia", "rag"]
 
 [tool.setuptools.package-data]
-rag = ["avaliacao.jsonl"]
+rag = ["avaliacao.jsonl", "excluidas.csv"]

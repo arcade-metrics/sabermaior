@@ -66,23 +66,41 @@ espirita-rag eval [--detalhar]                        # recall@k sobre rag/avali
 
 ## Qualidade da busca (`espirita-rag eval`)
 
-Acervo de 23/10/2026: 432 obras, 100 mil trechos (pt 59 mil, fr 13 mil, es 13 mil, en 11 mil,
-eo 4 mil). 27 consultas (23 perguntas parafraseadas, 4 palavras-chave como "aeróbus"), cada uma
-com a passagem esperada na obra de origem. Todas as linhas, menos a segunda, usam o idioma da pergunta:
+Acervo de 23/10/2026: 342 obras, 53.395 trechos (pt 319 obras e 49.065 trechos; o resto são
+23 obras em es, en, fr e eo sem equivalente em pt). 25 consultas em pt (21 perguntas parafraseadas,
+4 palavras-chave como "aeróbus"), cada uma com a passagem esperada na obra de origem. Todas as
+linhas, menos a segunda, usam o idioma da pergunta:
 
 | configuração | R@1 | R@5 | R@10 | MRR |
 |---|---|---|---|---|
-| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,41** | **0,85** | **0,89** | **0,59** |
-| vetorial, todos os idiomas | 0,30 | 0,70 | 0,81 | 0,46 |
-| vetorial | 0,33 | 0,81 | 0,85 | 0,53 |
-| textual (tsvector, E) | 0,15 | 0,22 | 0,22 | 0,18 |
-| híbrida RRF | 0,33 | 0,74 | 0,85 | 0,49 |
-| vetorial + reranker bge-reranker-v2-m3 | 0,44 | 0,67 | 0,74 | 0,53 |
+| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,28** | **0,64** | **0,80** | **0,42** |
+| vetorial | 0,24 | 0,64 | 0,80 | 0,40 |
+| híbrida RRF | 0,20 | 0,56 | 0,84 | 0,34 |
+| vetorial, todos os idiomas | 0,24 | 0,56 | 0,80 | 0,38 |
+| textual (tsvector, E) | 0,16 | 0,20 | 0,24 | 0,19 |
+
+O reranker bge-reranker-v2-m3 foi medido antes da limpeza (27 consultas, com traduções e
+duplicatas): R@1 0,44, R@5 0,67, R@10 0,74, MRR 0,53, contra 0,41, 0,85, 0,89 e 0,59 do `auto`
+na mesma base; o número de referência mudou, veja abaixo.
 
 O que explica os números:
-- O acervo tem várias traduções das mesmas obras (o LE em pt, es, en, fr, eo). O bge-m3 é
-  multilíngue e, sem filtro, as traduções tomam o topo. Por isso a busca usa o idioma da pergunta
-  (`--idioma auto`); `--idioma todos` desliga o filtro.
+- A prioridade é pt-BR. As traduções de obras que já existem em pt (72 obras: o LE em es, en, fr,
+  eo, a Revue Spirite etc.) foram retiradas e estão listadas em `rag/excluidas.csv`, com a obra
+  equivalente e a similaridade medida pelo bge-m3; o `ingest` pula esses PDFs. Ficaram só as
+  obras sem equivalente em pt. Mesmo assim a busca usa o idioma da pergunta (`--idioma auto`), e
+  `--idioma todos` desliga o filtro.
+- O acervo também tinha 18 duplicatas dentro do próprio pt: os clássicos de Kardec e a Revista
+  Espírita existiam numa edição do `consolador` e noutra da FEB (tradução Guillon Ribeiro ou
+  Quintão), e dois PDFs da FEB tinham conteúdo idêntico sob nomes diferentes. Ficou só a edição da
+  FEB, por ser a tradução de referência; os descartes também estão em `rag/excluidas.csv`
+  (`motivo=duplicata_edicao` ou `arquivo_duplicado`).
+- Essa limpeza **piorou** os números do `eval` (R@5 caiu de 0,88 para 0,64): o `chunking` agrupa
+  itens numerados até ~1.400 caracteres, e as edições da FEB têm itens mais curtos, então reúnem
+  mais perguntas por trecho do que as do `consolador` — o trecho certo às vezes existe mas sai do
+  top 5 ou do top 10. Confirmado manualmente: as frases esperadas de "Que é Deus?", "Conhece-te a
+  ti mesmo" e do perispírito aparecem, literais, nas edições da FEB mantidas; a busca só não as
+  traz entre os primeiros resultados para certas perguntas. Ajustar o chunking para essas edições
+  é o próximo passo antes de confiar nesses números.
 - O vetor perde termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha. Já
   em perguntas em linguagem natural, o `ts_rank` (sem IDF) só atrapalha. Daí o modo `auto`: sem
   "?" e com até 4 palavras vai na híbrida, senão só no vetor. BM25 de verdade (ParadeDB
