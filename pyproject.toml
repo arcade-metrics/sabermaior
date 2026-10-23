@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sabermaior"
+version = "0.1.0"
+description = "IA local compartilhada (ia) e pipeline RAG da literatura espírita (rag)"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "pymupdf>=1.24",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+]
+
+[project.optional-dependencies]
+rerank = ["sentence-transformers>=3.0"]
+
+[project.scripts]
+espirita-rag = "rag.cli:main"
+
+[tool.setuptools]
+packages = ["ia", "rag"]
+
+[tool.setuptools.package-data]
+rag = ["avaliacao.jsonl"]
