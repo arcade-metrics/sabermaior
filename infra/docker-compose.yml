@@ -1,0 +1,56 @@
+# Dev:  docker compose -f infra/docker-compose.yml up -d postgres
+#       (Ollama roda nativo no Windows, fora do compose)
+# Prod: docker compose -f infra/docker-compose.yml --profile prod up -d
+#       (VM Linux; perfil gpu para servir os modelos na própria VM)
+name: sabermaior
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${PG_USUARIO:-sabermaior}
+      POSTGRES_PASSWORD: ${PG_SENHA:-sabermaior}
+      POSTGRES_DB: ${PG_BANCO:-sabermaior}
+    ports:
+      - "127.0.0.1:${PG_PORTA:-5434}:5432"
+    volumes:
+      - pgdados:/var/lib/postgresql/data
+      - ../sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Embeddings (bge-m3) e reranker em CPU ou GPU, API do Text Embeddings Inference.
+  # Para embeddings via API compatível com OpenAI use EMBED_BASE_URL=http://tei-embed/v1.
+  tei-embed:
+    profiles: [prod]
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    command: --model-id BAAI/bge-m3
+    volumes: [hfcache:/data]
+    restart: unless-stopped
+
+  tei-rerank:
+    profiles: [prod]
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    command: --model-id BAAI/bge-reranker-v2-m3
+    volumes: [hfcache:/data]
+    restart: unless-stopped
+
+  # Geração em VM com GPU. Sem GPU, deixe este perfil de fora e aponte
+  # LLM_BASE_URL para uma API hospedada compatível com OpenAI.
+  vllm:
+    profiles: [gpu]
+    image: vllm/vllm-openai:latest
+    command: --model ${VLLM_MODELO:-Qwen/Qwen3-14B-AWQ} --max-model-len 16384
+    volumes: [hfcache:/root/.cache/huggingface]
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+    restart: unless-stopped
+
+volumes:
+  pgdados:
+  hfcache:
