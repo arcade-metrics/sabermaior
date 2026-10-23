@@ -73,10 +73,10 @@ linhas, menos a segunda, usam o idioma da pergunta:
 
 | configuração | R@1 | R@5 | R@10 | MRR |
 |---|---|---|---|---|
-| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,28** | **0,64** | **0,80** | **0,42** |
-| vetorial | 0,24 | 0,64 | 0,80 | 0,40 |
-| híbrida RRF | 0,20 | 0,56 | 0,84 | 0,34 |
-| vetorial, todos os idiomas | 0,24 | 0,56 | 0,80 | 0,38 |
+| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,32** | **0,64** | **0,80** | **0,45** |
+| vetorial | 0,28 | 0,60 | 0,76 | 0,41 |
+| híbrida RRF | 0,28 | 0,64 | 0,72 | 0,40 |
+| vetorial, todos os idiomas | 0,28 | 0,52 | 0,76 | 0,39 |
 | textual (tsvector, E) | 0,16 | 0,20 | 0,24 | 0,19 |
 
 O reranker bge-reranker-v2-m3 foi medido antes da limpeza (27 consultas, com traduções e
@@ -94,13 +94,23 @@ O que explica os números:
   Quintão), e dois PDFs da FEB tinham conteúdo idêntico sob nomes diferentes. Ficou só a edição da
   FEB, por ser a tradução de referência; os descartes também estão em `rag/excluidas.csv`
   (`motivo=duplicata_edicao` ou `arquivo_duplicado`).
-- Essa limpeza **piorou** os números do `eval` (R@5 caiu de 0,88 para 0,64): o `chunking` agrupa
-  itens numerados até ~1.400 caracteres, e as edições da FEB têm itens mais curtos, então reúnem
-  mais perguntas por trecho do que as do `consolador` — o trecho certo às vezes existe mas sai do
-  top 5 ou do top 10. Confirmado manualmente: as frases esperadas de "Que é Deus?", "Conhece-te a
-  ti mesmo" e do perispírito aparecem, literais, nas edições da FEB mantidas; a busca só não as
-  traz entre os primeiros resultados para certas perguntas. Ajustar o chunking para essas edições
-  é o próximo passo antes de confiar nesses números.
+- Essa limpeza baixou o `eval` de R@5 0,88 para 0,64. Duas causas, achadas ao investigar:
+  1. **Bug de chunking nas edições "WEB" da FEB, corrigido.** O número da pergunta vinha num
+     parágrafo isolado do PDF ("1." numa linha, "Que é Deus?" na seguinte — layout em coluna), e às
+     vezes um cabeçalho de página repetido ("Parte Primeira – Capítulo I") se intrometia no meio de
+     uma pergunta. O detector de itens não reconhecia nada disso: no Livro dos Espíritos, só 1% dos
+     trechos ficavam marcados com o número da questão (deveria ser quase 100%), e várias perguntas
+     acabavam fatiadas ou mescladas. Com a correção (`rag/chunking.py`), cada trecho citável
+     (questão do LE, item do ESE) passou a ser exatamente um item, confirmado item a item nos 7
+     livros clássicos e nos 9 anos da Revista Espírita reingeridos. Isso levou o `eval` de R@1 0,28
+     para 0,32 e o MRR de 0,42 para 0,45; o R@5 não mudou.
+  2. **Perda da redundância das duplicatas, sem solução — é o preço esperado da limpeza.** Com duas
+     edições do mesmo livro no banco, uma pergunta tinha duas chances de acertar a passagem certa;
+     com uma só, só uma. Nas perguntas mais genéricas (definição de Deus, livre-arbítrio), outras
+     obras do acervo (apostilas da FEB, "Estudo Aprofundado da Doutrina Espírita") competem pelo
+     mesmo espaço vetorial e às vezes ficam à frente do Livro dos Espíritos. Confirmado manualmente:
+     a frase esperada aparece, literal, na edição mantida — ela só não entra no top 5 para certas
+     perguntas. BM25 (Fase 2) é a aposta para resgatar esses casos por palavra-chave exata.
 - O vetor perde termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha. Já
   em perguntas em linguagem natural, o `ts_rank` (sem IDF) só atrapalha. Daí o modo `auto`: sem
   "?" e com até 4 palavras vai na híbrida, senão só no vetor. BM25 de verdade (ParadeDB

@@ -4,8 +4,8 @@ Atualizado em 23/10/2026.
 
 A Fase 1 do pipeline RAG está concluída: 342 obras e 53.395 trechos indexados, 319 delas em pt-BR, com
 busca e resposta citada rodando localmente. O acervo pt-BR também já foi limpo de duplicatas (72
-traduções e 18 edições repetidas). Essa limpeza revelou um problema real de chunking nas edições da
-FEB, descrito abaixo, que é o próximo passo antes de seguir para as Fases 2 a 4.
+traduções e 18 edições repetidas), e um bug real no `chunking` das edições da FEB, descoberto por essa
+limpeza, já foi corrigido. O próximo passo é a Fase 2 (BM25).
 
 ## Feito
 
@@ -33,27 +33,32 @@ por `pg_dump`.
 
 ## Qualidade medida
 
-Depois de retirar as duplicatas em pt, o `eval` piorou: o modo padrão (`auto`) caiu para 64% de
-acerto entre os 5 primeiros resultados (R@5; era 88% com as duplicatas no banco). Foram 25 consultas
-em pt: 21 perguntas parafraseadas e 4 palavras-chave.
+Depois de retirar as duplicatas em pt, o `eval` caiu: o modo padrão (`auto`) foi de R@5 0,88 (com as
+duplicatas no banco) para 0,64. Duas causas:
+
+1. **Bug de chunking, corrigido.** Nas edições "WEB" da FEB, o número da pergunta vinha num
+   parágrafo isolado do PDF ("1." numa linha, "Que é Deus?" na seguinte), e cabeçalhos de página
+   repetidos ("Parte Primeira – Capítulo I") às vezes cortavam uma pergunta ao meio. O Livro dos
+   Espíritos, por exemplo, só tinha 1% dos trechos marcados com o número da questão (deveria ser
+   quase 100%). Corrigido em `rag/chunking.py`; os 7 livros clássicos e os 9 anos da Revista
+   Espírita foram reingeridos. Resultado: cada trecho citável agora é exatamente um item (confirmado
+   item a item), R@1 subiu de 0,28 para 0,32 e o MRR de 0,42 para 0,45 — mas o R@5 não mudou.
+2. **Perda da redundância das duplicatas, sem solução — é o preço esperado da limpeza.** Com duas
+   edições do mesmo livro, uma pergunta tinha duas chances de acertar; com uma só, uma chance. Em
+   perguntas mais genéricas (definição de Deus, livre-arbítrio), apostilas e cursos da FEB disputam
+   o mesmo espaço vetorial e às vezes ficam à frente do Livro dos Espíritos.
 
 | Configuração | R@1 | R@5 | R@10 | MRR |
 | --- | --- | --- | --- | --- |
-| **auto: vetorial para perguntas, híbrida para palavras-chave (padrão)** | **0,28** | **0,64** | **0,80** | **0,42** |
-| vetorial | 0,24 | 0,64 | 0,80 | 0,40 |
-| híbrida RRF | 0,20 | 0,56 | 0,84 | 0,34 |
-| vetorial, todos os idiomas | 0,24 | 0,56 | 0,80 | 0,38 |
+| **auto: vetorial para perguntas, híbrida para palavras-chave (padrão)** | **0,32** | **0,64** | **0,80** | **0,45** |
+| vetorial | 0,28 | 0,60 | 0,76 | 0,41 |
+| híbrida RRF | 0,28 | 0,64 | 0,72 | 0,40 |
+| vetorial, todos os idiomas | 0,28 | 0,52 | 0,76 | 0,39 |
 | textual (`tsvector`) | 0,16 | 0,20 | 0,24 | 0,19 |
 
-**A queda é real, não um artefato da avaliação.** O `chunking` agrupa itens numerados até ~1.400
-caracteres; as edições da FEB (Guillon Ribeiro, Quintão) têm itens mais curtos que as do
-`consolador`, então cada trecho reúne mais perguntas do Livro dos Espíritos ou do Evangelho. O
-trecho certo muitas vezes ainda existe, só que sai do top 5 ou do top 10. Conferi manualmente: as
-frases esperadas de "Que é Deus?", "Conhece-te a ti mesmo" e da definição de perispírito aparecem,
-literais, nas edições da FEB que ficaram no banco — a busca só não as traz entre os primeiros
-lugares para certas perguntas. A troca pela edição da FEB foi intencional (é a tradução de
-referência), mas o chunking para essas edições precisa de ajuste antes de usar esses números para
-decidir a Fase 2.
+Conferi manualmente: a frase esperada aparece, literal, na edição da FEB mantida — ela só não entra
+no top 5 para certas perguntas. Isso é exatamente o que o BM25 real (Fase 2) deveria resgatar por
+palavra-chave exata; por isso a Fase 2 segue como o próximo passo, não mais bloqueada pelo chunking.
 
 O reranker bge-reranker-v2-m3 foi medido antes de toda a limpeza (27 consultas, com traduções e
 duplicatas): melhora o 1º lugar, mas piora o top 5 (R@5 0,67 contra 0,85 do `auto` na mesma base),
@@ -67,8 +72,6 @@ porque prefere apostilas que citam a passagem à obra original. Por isso está d
 
 **Manutenção**
 
-- [ ] Rever o `chunking` para as edições da FEB (itens mais curtos que viram trechos maiores,
-      derrubando o `eval` de R@5 0,88 para 0,64 — ver "Qualidade medida")
 - [ ] Criar testes automatizados para extração, chunking e busca (hoje só existe o `eval`)
 - [ ] Ampliar o conjunto de avaliação além das 25 consultas, em pt-BR
 - [ ] Revisar por amostragem os manifestos de sumário (`parse-toc`) das obras principais
