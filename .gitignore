@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.egg-info/
+*.log
+.claude/
+.env.*
+!.env.*.example
+*.dump
+*.sql.gz
