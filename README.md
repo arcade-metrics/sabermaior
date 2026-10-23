@@ -14,7 +14,7 @@ rode o `finder` para baixar o acervo e `espirita-rag ingest` para montar o banco
 
 ```
 cp .env.dev.example .env.dev                                # opcional: sem ele valem os mesmos padrões
-docker compose -f infra/docker-compose.yml up -d postgres   # Postgres + pgvector em 127.0.0.1:5434
+docker compose -f infra/docker-compose.yml up -d postgres   # Postgres + pgvector + pg_search (BM25) em 127.0.0.1:5434
 # Ollama: abrir o app (roda nativo no Windows, usa a GPU)
 pip install -e .            # ou .[rerank] para o reranker local (torch CUDA)
 espirita-rag status
@@ -73,11 +73,14 @@ linhas, menos a segunda, usam o idioma da pergunta:
 
 | configuração | R@1 | R@5 | R@10 | MRR |
 |---|---|---|---|---|
-| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,32** | **0,64** | **0,80** | **0,45** |
-| vetorial | 0,28 | 0,60 | 0,76 | 0,41 |
-| híbrida RRF | 0,28 | 0,64 | 0,72 | 0,40 |
-| vetorial, todos os idiomas | 0,28 | 0,52 | 0,76 | 0,39 |
-| textual (tsvector, E) | 0,16 | 0,20 | 0,24 | 0,19 |
+| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,28** | **0,60** | **0,76** | **0,41** |
+| vetorial | 0,24 | 0,56 | 0,72 | 0,37 |
+| híbrida RRF (BM25 completo, não só nas palavras-chave) | 0,24 | 0,56 | 0,72 | 0,36 |
+| vetorial, todos os idiomas | 0,24 | 0,48 | 0,72 | 0,35 |
+| textual (BM25, ParadeDB `pg_search`, E) | 0,12 | 0,16 | 0,20 | 0,15 |
+
+(Pequenas variações de ±1 pergunta entre rodadas vêm da busca HNSW, que é aproximada; não é ruído
+de medição grave num conjunto de 25 perguntas, mas também não deve ser lido como sinal fino.)
 
 O reranker bge-reranker-v2-m3 foi medido antes da limpeza (27 consultas, com traduções e
 duplicatas): R@1 0,44, R@5 0,67, R@10 0,74, MRR 0,53, contra 0,41, 0,85, 0,89 e 0,59 do `auto`
@@ -111,10 +114,21 @@ O que explica os números:
      mesmo espaço vetorial e às vezes ficam à frente do Livro dos Espíritos. Confirmado manualmente:
      a frase esperada aparece, literal, na edição mantida — ela só não entra no top 5 para certas
      perguntas. BM25 (Fase 2) é a aposta para resgatar esses casos por palavra-chave exata.
-- O vetor perde termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha. Já
-  em perguntas em linguagem natural, o `ts_rank` (sem IDF) só atrapalha. Daí o modo `auto`: sem
-  "?" e com até 4 palavras vai na híbrida, senão só no vetor. BM25 de verdade (ParadeDB
-  `pg_search`, Fase 2) pode tornar a híbrida boa para tudo.
+- **Fase 2 concluída: BM25 real.** O `ts_rank`/`tsvector` do Postgres foi trocado pelo `pg_search`
+  da ParadeDB (índice BM25 de verdade, com IDF). A imagem do Postgres mudou de
+  `pgvector/pgvector:pg17` para `paradedb/paradedb:0.26.3-pg17` (mesma versão do Postgres, pgvector
+  incluído); `sql/002_bm25.sql` cria a extensão, uma coluna gerada sem acento
+  (`conteudo_simples`) e o índice BM25 (tokenizer `icu`, stemmer `Portuguese`). A busca textual usa
+  `paradedb.match(..., conjunction_mode => true)` (todas as palavras, E), que é a forma seca de
+  passar texto do usuário sem risco de injeção na sintaxe de consulta do `pg_search`. O vetor
+  continua perdendo termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha —
+  nas 4 perguntas de palavra-chave do `eval`, BM25 acerta a posição 1 ou 2, igual ou melhor que o
+  `ts_rank` antigo.
+- **Achado:** com BM25 de verdade, a híbrida (RRF) deixou de piorar perguntas em linguagem natural
+  — ela empata com o vetorial puro nas 25 perguntas (R@5 0,56 nas duas), contra uma diferença clara
+  quando a textual era `ts_rank`. Ainda não é evidência suficiente (25 perguntas é pouco) para trocar
+  o modo `auto` por "híbrida sempre", mas é um motivo para reavaliar isso quando o conjunto de
+  avaliação crescer.
 - O reranker melhora o 1º lugar, mas piora o top 5/10: prefere as apostilas da FEB que citam a
   passagem à obra original. Fica desligado (`RERANK_PROVIDER=none`); ligue com
   `RERANK_PROVIDER=local` para testar.

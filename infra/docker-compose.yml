@@ -6,7 +6,7 @@ name: sabermaior
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: paradedb/paradedb:0.26.3-pg17  # pgvector + pg_search (BM25), mesmo Postgres 17.11
     environment:
       POSTGRES_USER: ${PG_USUARIO:-sabermaior}
       POSTGRES_PASSWORD: ${PG_SENHA:-sabermaior}
@@ -16,6 +16,7 @@ services:
     volumes:
       - pgdados:/var/lib/postgresql/data
       - ../sql:/docker-entrypoint-initdb.d:ro
+    command: postgres -c shared_preload_libraries=pg_search
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

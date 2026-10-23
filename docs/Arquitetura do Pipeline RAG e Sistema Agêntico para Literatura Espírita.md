@@ -104,8 +104,8 @@ Configuração para execução em ambiente de desenvolvimento local utilizando D
 
 ## **6\. Roteiro de Evolução Futura (Fase Agêntica e Ontologias)**
 
-> * **Fase 1 (Atual):** Extração em lote, mapeamento estruturado de sumário, geração de embeddings locais (via Ollama) e armazenamento no PostgreSQL (pgvector).  
-> * **Fase 2 (Busca Híbrida \+ Re-ranking):** Integração de busca vetorial semântica combinada com busca por texto completo (Full-Text Search BM25 do PostgreSQL) e reordenamento de contexto.  
+> * **Fase 1 (Concluída):** Extração em lote, mapeamento estruturado de sumário, geração de embeddings locais (via Ollama) e armazenamento no PostgreSQL (pgvector).  
+> * **Fase 2 (Concluída):** Busca híbrida com BM25 real (ParadeDB `pg_search`, não o `tsvector`/`ts_rank` nativo do Postgres) combinada com a busca vetorial semântica (RRF); reranking implementado, desligado por padrão (ver seção 7 e `docs/status-e-proximos-passos.md`).  
 > * **Fase 3 (Grafos de Conhecimento & Ontologias):** Construção de um Grafo de Conhecimento (Neo4j ou PostgreSQL AGE) conectando entidades como *Espírito, Perispírito, Reencarnação, Causa/Efeito* e relacionando passagens entre diferentes obras e autores.  
 > * **Fase 4 (Implementação Agêntica):** Agentes especializados (ex: Agente Histórico, Agente Doutrinário, Agente de Citação) orchestrados pelo sistema de IA para responder consultas complexas com checagem de fontes.
 ## **7\. Decisões de Implementação (out/2026)**
@@ -121,5 +121,6 @@ Ajustes ao desenho acima, já implementados em `ia/`, `rag/`, `sql/` e `infra/` 
 | Sumário | Marcadores do PDF → regex na página de sumário → LLM lê a página de sumário (saída JSON); cada entrada é localizada no texto | Muitos PDFs não têm marcadores; o manifesto fica em `obras.manifesto` |
 | Metadados | LLM lê as primeiras páginas: título, autor/médium, autor espiritual, tradutor, editora | O catálogo do finder muitas vezes só tem o nome do arquivo |
 | Chunking | Estrutural: corta em títulos, agrupa por item numerado (questão do LE, item do ESE) ou parágrafo (~1400 caracteres, sobreposição de ~250 na prosa) | Preserva a unidade citável (questão/item) |
-| Busca | Filtrada pelo idioma da pergunta. Pergunta → vetorial (HNSW, cosseno); palavra-chave (sem "?", até 4 palavras) → híbrida (`tsvector` + RRF). Reranker `bge-reranker-v2-m3` implementado, desligado por padrão | Medido no `eval` (README): MRR 0,59 contra 0,46 do vetorial sem filtro; o vetor perde termos raros ("aeróbus"); o reranker piorou o top 5. BM25 real (ParadeDB `pg_search`) segue na Fase 2 |
+| Busca | Filtrada pelo idioma da pergunta. Pergunta → vetorial (HNSW, cosseno); palavra-chave (sem "?", até 4 palavras) → híbrida (BM25 real via ParadeDB `pg_search` + RRF). Reranker `bge-reranker-v2-m3` implementado, desligado por padrão | O vetor perde termos raros ("aeróbus"); o reranker piorou o top 5 nos testes. Números atualizados (acervo sem duplicatas, após a Fase 2) em `docs/status-e-proximos-passos.md` |
+| BM25 | Postgres passou a rodar na imagem `paradedb/paradedb` (mesma versão do Postgres, pgvector incluído) em vez de `pgvector/pgvector`, só para ganhar o `pg_search` | O `ts_rank`/`tsvector` nativo do Postgres não pondera por IDF; BM25 de verdade |
 | Produção | Ingestão sempre local; a VM recebe o banco por `pg_dump`/`pg_restore` e só embeda a pergunta e gera a resposta | A parte pesada fica na GPU local; a VM pode até não ter GPU |
