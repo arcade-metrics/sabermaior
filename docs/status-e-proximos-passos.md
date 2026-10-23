@@ -4,8 +4,9 @@ Atualizado em 23/10/2026.
 
 A Fase 1 do pipeline RAG está concluída: 342 obras e 53.395 trechos indexados, 319 delas em pt-BR, com
 busca e resposta citada rodando localmente. O acervo pt-BR também já foi limpo de duplicatas (72
-traduções e 18 edições repetidas), e um bug real no `chunking` das edições da FEB, descoberto por essa
-limpeza, já foi corrigido. O próximo passo é a Fase 2 (BM25).
+traduções e 18 edições repetidas), um bug real no `chunking` das edições da FEB foi corrigido, e a
+Fase 2 (BM25 real com ParadeDB `pg_search`) já está rodando. Falta decidir entre Produção, Interface
+e Fase 3 como próximo passo.
 
 ## Feito
 
@@ -16,8 +17,8 @@ limpeza, já foi corrigido. O próximo passo é a Fase 2 (BM25).
 | Extração | `rag/extracao.py` | PyMuPDF; remove cabeçalho, rodapé e notas; desfaz hifenização; detecta o idioma |
 | Sumário e metadados | `rag/sumario.py` | Marcadores do PDF, depois regex, depois LLM; título, autor, médium, tradutor e editora lidos pela LLM; manifesto em `obras.manifesto` |
 | Chunking | `rag/chunking.py` | Corta em títulos e agrupa por questão ou item numerado; ~1.400 caracteres com ~250 de sobreposição na prosa |
-| Banco | `sql/001_schema.sql` | Postgres 17 + pgvector; tabelas `obras` e `trechos`; índices HNSW (cosseno) e GIN (`tsvector`) |
-| Busca | `rag/busca.py` | Vetorial, textual e híbrida (RRF); modo `auto` e filtro pelo idioma da pergunta; reranker pronto, desligado |
+| Banco | `sql/001_schema.sql`, `sql/002_bm25.sql` | Postgres 17 (imagem `paradedb/paradedb`) + pgvector + pg_search; tabelas `obras` e `trechos`; índices HNSW (cosseno) e BM25 (`pg_search`) |
+| Busca | `rag/busca.py` | Vetorial, textual (BM25 real) e híbrida (RRF); modo `auto` e filtro pelo idioma da pergunta; reranker pronto, desligado |
 | Resposta | `rag/responder.py` | Gera com `qwen3:14b` (ou `gemma3:12b`) e valida que cada citação aponta para um trecho real |
 | Avaliação | `rag/avaliacao.py` | R@1, R@5, R@10 e MRR sobre 27 consultas em `rag/avaliacao.jsonl` |
 | CLI | `espirita-rag` | `init-db`, `ingest`, `parse-toc`, `search`, `ask`, `eval`, `status` |
@@ -34,7 +35,7 @@ por `pg_dump`.
 ## Qualidade medida
 
 Depois de retirar as duplicatas em pt, o `eval` caiu: o modo padrão (`auto`) foi de R@5 0,88 (com as
-duplicatas no banco) para 0,64. Duas causas:
+duplicatas no banco) para 0,64. Duas causas, investigadas e resolvidas na medida do possível:
 
 1. **Bug de chunking, corrigido.** Nas edições "WEB" da FEB, o número da pergunta vinha num
    parágrafo isolado do PDF ("1." numa linha, "Que é Deus?" na seguinte), e cabeçalhos de página
@@ -48,17 +49,26 @@ duplicatas no banco) para 0,64. Duas causas:
    perguntas mais genéricas (definição de Deus, livre-arbítrio), apostilas e cursos da FEB disputam
    o mesmo espaço vetorial e às vezes ficam à frente do Livro dos Espíritos.
 
+Depois disso veio a Fase 2 (BM25 real, ver abaixo), que não resolve esse segundo ponto — ele não
+está mais bloqueando nada, só não tem solução dentro do próprio pipeline de busca.
+
 | Configuração | R@1 | R@5 | R@10 | MRR |
 | --- | --- | --- | --- | --- |
-| **auto: vetorial para perguntas, híbrida para palavras-chave (padrão)** | **0,32** | **0,64** | **0,80** | **0,45** |
-| vetorial | 0,28 | 0,60 | 0,76 | 0,41 |
-| híbrida RRF | 0,28 | 0,64 | 0,72 | 0,40 |
-| vetorial, todos os idiomas | 0,28 | 0,52 | 0,76 | 0,39 |
-| textual (`tsvector`) | 0,16 | 0,20 | 0,24 | 0,19 |
+| **auto: vetorial para perguntas, híbrida para palavras-chave (padrão)** | **0,28** | **0,60** | **0,76** | **0,41** |
+| vetorial | 0,24 | 0,56 | 0,72 | 0,37 |
+| híbrida RRF (BM25 completo) | 0,24 | 0,56 | 0,72 | 0,36 |
+| vetorial, todos os idiomas | 0,24 | 0,48 | 0,72 | 0,35 |
+| textual (BM25, ParadeDB `pg_search`) | 0,12 | 0,16 | 0,20 | 0,15 |
 
 Conferi manualmente: a frase esperada aparece, literal, na edição da FEB mantida — ela só não entra
-no top 5 para certas perguntas. Isso é exatamente o que o BM25 real (Fase 2) deveria resgatar por
-palavra-chave exata; por isso a Fase 2 segue como o próximo passo, não mais bloqueada pelo chunking.
+no top 5 para certas perguntas. O BM25 não resgatou essas perguntas genéricas (não são palavras
+raras, é concorrência semântica mesmo), mas acerta bem as 4 perguntas de palavra-chave do conjunto
+(posição 1 ou 2, igual ou melhor que o `ts_rank` antigo) — que é o caso de uso real da busca textual.
+
+**Achado da Fase 2:** com BM25 de verdade, a híbrida deixou de piorar perguntas em linguagem natural —
+empata com o vetorial puro (R@5 0,56 nas duas), em vez de ficar visivelmente atrás como acontecia
+com `ts_rank`. Ainda não é evidência suficiente (25 perguntas) para trocar o `auto` por "híbrida
+sempre", mas vale reavaliar quando o conjunto de avaliação crescer (ver "A fazer").
 
 O reranker bge-reranker-v2-m3 foi medido antes de toda a limpeza (27 consultas, com traduções e
 duplicatas): melhora o 1º lugar, mas piora o top 5 (R@5 0,67 contra 0,85 do `auto` na mesma base),
@@ -78,6 +88,13 @@ porque prefere apostilas que citam a passagem à obra original. Por isso está d
 - [ ] "Espíritos Diversos" aparece como título de 4 obras do Chico Xavier (`luznolar.pdf`,
       `poetasredivivos.pdf`, `falandoaterra.pdf`, `maosmarcadas.pdf`): é o nome do autor espiritual,
       não o título real; são livros diferentes, não duplicatas, mas o metadado está errado
+- [ ] Reingerir o resto do acervo com o chunking corrigido (só os 7 clássicos + 9 anos da Revista
+      Espírita foram reingeridos; o bug pode afetar outros PDFs em layout parecido, ex.: `Estudo
+      Aprofundado da Doutrina Espírita`, `Programa Fundamental`)
+- [ ] Remover `trechos.tsv`/`fts_cfg`/`trechos_tsv_idx` e `CONFIG_FTS` (ficaram sem uso depois do
+      BM25 — `rag/indexar.py` ainda grava `fts_cfg`, mas nada mais lê)
+- [ ] Com mais perguntas no `eval`, testar se vale trocar `auto` por "híbrida sempre" (ver achado em
+      "Qualidade medida")
 
 **Produção (VM)**
 
@@ -91,10 +108,11 @@ porque prefere apostilas que citam a passagem à obra original. Por isso está d
 - [ ] API HTTP para `search` e `ask` (hoje só há a CLI)
 - [ ] Interface web simples para testar com usuários
 
-**Fase 2: busca híbrida com BM25**
+**Fase 2: busca híbrida com BM25 — concluída**
 
-- [ ] Trocar o `ts_rank` por BM25 real (ParadeDB `pg_search`), para a híbrida servir também a perguntas
-- [ ] Reavaliar o reranker depois do BM25, ou rebaixar apostilas que citam a obra original
+- [x] Trocar o `ts_rank` por BM25 real (ParadeDB `pg_search`): imagem `paradedb/paradedb:0.26.3-pg17`,
+      `sql/002_bm25.sql`, `rag/busca.py` usa `paradedb.match(conjunction_mode => true)`
+- [ ] Reavaliar o reranker agora com BM25, ou rebaixar apostilas que citam a obra original
 
 **Fase 3: grafo de conhecimento**
 

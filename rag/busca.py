@@ -1,13 +1,13 @@
-"""Busca vetorial (pgvector/HNSW), textual (tsvector) ou híbrida (RRF),
-com reranking opcional. Padrão (modo auto, idioma auto): vetorial para
-perguntas, híbrida para palavras-chave, no idioma da pergunta; foi o melhor
-resultado em rag/avaliacao.jsonl (veja README)."""
+"""Busca vetorial (pgvector/HNSW), textual (BM25 real via ParadeDB pg_search)
+ou híbrida (RRF), com reranking opcional. Padrão (modo auto, idioma auto):
+vetorial para perguntas, híbrida para palavras-chave, no idioma da pergunta;
+foi o melhor resultado em rag/avaliacao.jsonl (veja README)."""
 
 import re
 
 from pgvector import Vector
 
-from .extracao import CONFIG_FTS, idioma_consulta
+from .extracao import idioma_consulta
 
 RRF_K = 60
 PESO_TEXTO = 1.0  # peso da lista textual na fusão (a vetorial pesa 1)
@@ -48,18 +48,17 @@ def vetorial(conn, ia, consulta, n, obra=None, idioma=None):
 
 
 def textual(conn, consulta, n, obra=None, idioma=None):
-    """Todas as palavras da consulta (E), com o stemming do idioma; sem
-    idioma, qualquer um deles. Em OU, sem IDF, o ts_rank_cd premiava índices
-    e glossários que juntam muitas palavras comuns da pergunta."""
-    configs = [CONFIG_FTS[idioma]] if idioma in CONFIG_FTS else sorted(set(CONFIG_FTS.values()))
-    consultas = " || ".join(f"plainto_tsquery('{cfg}', f_unaccent(%(q)s))" for cfg in configs)
+    """BM25 real (ParadeDB pg_search) sobre o texto sem acento, exigindo
+    todas as palavras da consulta (E) via paradedb.match(conjunction_mode).
+    O stemmer do índice é só em português (sql/002_bm25.sql); es/en/fr não
+    são estemizados, mas continuam tokenizados e buscáveis."""
     filtro, params = _filtros(obra, idioma)
     with conn.cursor() as cur:
         cur.execute(f"""
-            WITH q AS (SELECT {consultas} AS tsq)
-            SELECT {_COLUNAS}, ts_rank_cd(t.tsv, q.tsq, 1) AS rank_texto
-            FROM trechos t JOIN obras o ON o.id = t.obra_id, q
-            WHERE t.tsv @@ q.tsq {filtro}
+            SELECT {_COLUNAS}, paradedb.score(t.id) AS rank_texto
+            FROM trechos t JOIN obras o ON o.id = t.obra_id
+            WHERE t.conteudo_simples @@@ paradedb.match('conteudo_simples', f_unaccent(%(q)s),
+                                                         conjunction_mode => true) {filtro}
             ORDER BY rank_texto DESC LIMIT %(n)s
         """, {"q": consulta, "n": n, **params})
         return _linhas(cur)
