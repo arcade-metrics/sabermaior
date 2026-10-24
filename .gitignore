@@ -7,3 +7,8 @@ __pycache__/
 !.env.*.example
 *.dump
 *.sql.gz
+node_modules/
+# build da interface (web/ -> npm run build)
+api/estaticos/
+# miniaturas de capa geradas pela API (rag/obras.py)
+.cache/
