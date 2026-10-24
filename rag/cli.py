@@ -20,6 +20,7 @@ from pathlib import Path
 from ia import IA, carregar
 from ia.config import RAIZ
 
+from agentes import responder as responder_agentes
 from grafo import consulta as grafo_consulta
 
 from . import avaliacao, db, indexar, sumario
@@ -144,6 +145,28 @@ def cmd_ask(args):
     print(f"\n{ia.config.llm_model}, {time.monotonic() - inicio:.1f}s")
 
 
+def cmd_ask_agentes(args):
+    ia = _ia(args)
+    if args.modelo:
+        ia.config = dataclasses.replace(ia.config, llm_model=args.modelo)
+    inicio = time.monotonic()
+    with db.conectar(ia.config) as conn:
+        r = responder_agentes(conn, ia, args.pergunta, k=args.k, pensar=args.pensar, **_filtros(args))
+    print(f"[agente: {r['agente']}]\n")
+    print(r["resposta"])
+    print("\nFontes:")
+    for n in r["citados"]:
+        t = r["trechos"][n - 1]
+        print(f"  [{n}] {referencia(t)}  ({t['id']})")
+    if r["invalidas"]:
+        print(f"  ATENÇÃO: citações sem trecho correspondente: {r['invalidas']}")
+    if r["citacoes_nao_confirmadas"]:
+        print("  ATENÇÃO: citações entre aspas sem texto idêntico em nenhum trecho citado:")
+        for c in r["citacoes_nao_confirmadas"]:
+            print(f'    "{c}"')
+    print(f"\n{ia.config.llm_model}, {time.monotonic() - inicio:.1f}s")
+
+
 def cmd_eval(args):
     ia = _ia(args)
     with db.conectar(ia.config) as conn:
@@ -238,6 +261,15 @@ def main(argv=None):
     sub.choices["search"].add_argument("--chars", type=int, default=400, help="caracteres exibidos por trecho")
     sub.choices["ask"].add_argument("--pensar", action="store_true", help="liga o modo de raciocínio do modelo")
     sub.choices["ask"].add_argument("--modelo", help="modelo de chat (sobrepõe LLM_MODEL)")
+
+    s = sub.add_parser("ask-agentes", help="(Fase 4) responde via Agente Histórico/Doutrinário + checagem de citações")
+    s.add_argument("pergunta")
+    s.add_argument("-k", type=int, default=8)
+    s.add_argument("--obra", help="id da obra ou parte do título")
+    s.add_argument("--idioma", default="auto")
+    s.add_argument("--pensar", action="store_true")
+    s.add_argument("--modelo")
+    s.set_defaults(func=cmd_ask_agentes)
 
     s = sub.add_parser("eval", help="recall@k do conjunto de perguntas de avaliação")
     s.add_argument("--arquivo", default=str(Path(__file__).with_name("avaliacao.jsonl")))
