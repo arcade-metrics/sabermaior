@@ -48,7 +48,7 @@ export function Chat({ conversa, perguntar, agentes, setAgentes, obra, tirarObra
           </div>
           {/* No celular a barra lateral fica na gaveta; aqui o apoio continua à vista. */}
           <p className="mt-6 text-center text-xs text-suave md:hidden">
-            Gratuito e mantido por doações ·{' '}
+            Gratuito, com contas abertas ·{' '}
             <a href="#/apoie" className="font-medium text-destaque hover:underline">
               Apoie
             </a>

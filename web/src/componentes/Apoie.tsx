@@ -11,6 +11,7 @@ import {
   MessageCircle,
   MessageSquareText,
   Share2,
+  Target,
   type LucideIcon,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -55,7 +56,7 @@ export function CartaoApoie({ ativo }: { ativo: boolean }) {
           <Heart className="size-4 text-destaque" aria-hidden />
           Apoie o Saber Maior
         </span>
-        <span className="mt-1 block text-xs text-suave">Gratuito e mantido por doações</span>
+        <span className="mt-1 block text-xs text-suave">Gratuito, com contas abertas</span>
       </a>
     </div>
   )
@@ -68,10 +69,27 @@ export function Apoie() {
       <section className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight">Apoie o Saber Maior</h1>
         <p className="leading-7 text-texto/90">
-          O Saber Maior é gratuito e vai continuar sendo. Servidor, modelo de linguagem e domínio têm custo todo mês,
-          e ele é pago com doações. Tudo o que entra e sai fica registrado na prestação de contas, aberta a qualquer
-          pessoa.
+          O Saber Maior é gratuito e vai continuar sendo. Hoje ele roda num servidor próprio, custeado pelo
+          mantenedor. As doações servem para dar a ele uma estrutura independente, e tudo o que entra e sai fica
+          registrado na prestação de contas, aberta a qualquer pessoa.
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">A meta</h2>
+        <Cartao className="flex gap-4 p-5">
+          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-destaque/10 text-destaque">
+            <Target className="size-5" aria-hidden />
+          </span>
+          <div className="min-w-0 space-y-2">
+            <p className="leading-7 text-texto/90">
+              Levar o Saber Maior para um servidor dedicado na nuvem, com placa de vídeo própria para o modelo de
+              linguagem. Assim ele fica no ar o tempo todo, sem depender do equipamento de uma pessoa, e continua usando
+              só IA aberta.
+            </p>
+            <p className="text-sm text-suave">Amazon AWS g6.xlarge (GPU NVIDIA L4, 24 GB) · cerca de US$ 600 por mês (aprox. R$ 3.300)</p>
+          </div>
+        </Cartao>
       </section>
 
       <section className="space-y-3">
@@ -107,8 +125,8 @@ export function Apoie() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Para onde vai o dinheiro</h2>
         <p className="leading-7 text-texto/90">
-          As doações pagam o servidor (banco de dados e API), o modelo de linguagem que redige as respostas e o domínio
-          com backup. Os comprovantes de cada entrada e de cada gasto ficam numa pasta pública do Google Drive, só para
+          As doações vão para essa estrutura: o servidor (banco de dados e API), o modelo de linguagem que redige as
+          respostas e o domínio com backup. Os comprovantes de cada entrada e de cada gasto ficam numa pasta pública do Google Drive, só para
           visualização.
         </p>
         <p className="leading-7 text-texto/90">
