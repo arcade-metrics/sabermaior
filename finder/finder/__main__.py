@@ -19,7 +19,7 @@ from .rede import Bloqueado, Cliente
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="python -m finder", description="Busca e baixa obras espíritas em domínio público.")
+    p = argparse.ArgumentParser(prog="python -m finder", description="Busca e baixa obras espíritas distribuídas gratuitamente pelas fontes.")
     p.add_argument("termo", nargs="?", default="", help="palavras a procurar no título, categoria ou nome do arquivo (vazio = tudo)")
     p.add_argument("--fontes", nargs="+", choices=list(FONTES), default=list(FONTES))
     p.add_argument("--listar", action="store_true", help="só lista o que encontrou, sem baixar")

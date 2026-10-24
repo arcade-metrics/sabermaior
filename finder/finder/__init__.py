@@ -1,1 +1,1 @@
-"""Buscador de obras espíritas em domínio público."""
+"""Buscador de obras espíritas distribuídas gratuitamente pelas fontes."""
