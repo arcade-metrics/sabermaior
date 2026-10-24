@@ -102,10 +102,21 @@ porque prefere apostilas que citam a passagem à obra original. Por isso está d
       `sql/002_bm25.sql`, `rag/busca.py` usa `paradedb.match(conjunction_mode => true)`
 - [ ] Reavaliar o reranker agora com BM25, ou rebaixar apostilas que citam a obra original
 
-**Interface — próximo passo**
+**Interface — feita (falta testar com usuários)**
 
-- [ ] API HTTP para `search` e `ask` (hoje só há a CLI)
-- [ ] Interface web simples para testar com usuários
+- [x] API HTTP (FastAPI, `api/main.py`): `/api/search` (com filtro `obra`), `/api/ask`, `/api/ask-agentes`,
+      `/api/obras`, `/api/obras/{id}` e `/api/obras/{id}/capa` (catálogo em `rag/obras.py`, só obras não
+      ocultas; a capa é a 1ª página do PDF, gerada sob demanda em `.cache/capas/`), `/api/grafo`
+- [x] Interface web responsiva em `web/` (Vite + React + TypeScript + Tailwind CSS v4 + TanStack
+      Query, fonte Inter, tons de azul): layout de chat no padrão do ChatGPT, com barra lateral (gaveta
+      no celular), histórico de conversas salvo no navegador, citações clicáveis que abrem o trecho,
+      página Obras (filtro por título/autor e coleção; detalhes com capa, sumário, PDF, "Buscar nesta obra"
+      e "Perguntar sobre esta obra", que abre uma conversa filtrada pela obra, com selo removível no campo),
+      Buscar trechos; a aba Conceitos (grafo) está fora do menu, mas acessível em `#/conceitos`; tema claro, escuro ou do sistema. Cada pergunta continua
+      independente no backend (sem memória de conversa). Dev: `uvicorn api.main:app --reload`
+      e `cd web && npm run dev` (porta 5173, repassa `/api` para a 8000). Build: `npm run build`, que
+      grava em `api/estaticos/` (fora do git), servido pelo próprio FastAPI na porta 8000
+- [ ] Testar com usuários e coletar perguntas reais para o `eval`
 
 **Fase 3: grafo de conhecimento**
 
