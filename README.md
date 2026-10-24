@@ -1,6 +1,9 @@
 <div align="center">
 
-# Saber Maior
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/brand/logo-saber-maior-dark.svg">
+  <img src="images/brand/logo-saber-maior-light.svg" alt="Saber Maior" width="320">
+</picture>
 
 **Estudo da literatura espírita com as fontes à vista, gratuito e em aberto.**
 
