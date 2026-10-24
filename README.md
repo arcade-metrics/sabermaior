@@ -1,8 +1,11 @@
 <div align="center">
 
-# Saber Maior
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/brand/logo-saber-maior-dark.svg">
+  <img src="images/brand/logo-saber-maior-light.svg" alt="Saber Maior" width="320">
+</picture>
 
-**Estudo da literatura espírita com as fontes à vista, gratuito e em aberto.**
+**Um buscador amigável de referências da doutrina espírita, gratuito e em aberto.**
 
 Um assistente que responde perguntas a partir das obras espíritas e mostra, em cada frase,
 o trecho, a obra, o capítulo e a página de onde tirou o que diz.

@@ -41,7 +41,7 @@ const PRESTACAO_DE_CONTAS = 'https://drive.google.com/drive/folders/1ZzeddySZomv
 // Com `publico: false`, o cartão mostra "Em breve" em vez do link (que daria 404 num repositório privado).
 const REPOSITORIO = { url: 'https://github.com/arcade-metrics/sabermaior', publico: true }
 
-const DIVULGACAO = 'Saber Maior: estudo da literatura espírita com as fontes à vista, gratuito.'
+const DIVULGACAO = 'Saber Maior: buscador amigável de referências da doutrina espírita, gratuito.'
 
 /** Cartão no rodapé da barra lateral, logo acima da conta. */
 export function CartaoApoie({ ativo }: { ativo: boolean }) {

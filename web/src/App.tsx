@@ -8,6 +8,7 @@ import { Chat } from './componentes/Chat'
 import { Conceitos } from './componentes/Conceitos'
 import { Conta } from './componentes/Conta'
 import { Manifesto } from './componentes/Manifesto'
+import { Simbolo } from './componentes/Marca'
 import { Obras } from './componentes/Obras'
 import { useConversas, useTema } from './estado'
 
@@ -161,7 +162,7 @@ function Lateral({ rota, conversas, remover, conta, fechar }: PropsLateral) {
     <nav className="flex h-full flex-col" aria-label="Navegação">
       <div className="flex h-14 shrink-0 items-center justify-between px-3">
         <a href="#/" className="flex items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight">
-          <Logo />
+          <Simbolo className="size-7" />
           Saber Maior
         </a>
         <BotaoIcone rotulo="Fechar barra lateral" onClick={fechar}>
@@ -242,15 +243,5 @@ function BotaoIcone({ rotulo, onClick, className = '', children }: { rotulo: str
     >
       {children}
     </button>
-  )
-}
-
-function Logo() {
-  return (
-    <span className="inline-flex size-7 items-center justify-center rounded-lg bg-destaque text-sobre-destaque">
-      <svg viewBox="0 0 24 24" className="size-4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
-        <path d="M4 6.5c2.6-1.3 5.3-1.3 8 0v12c-2.7-1.3-5.4-1.3-8 0zM20 6.5c-2.6-1.3-5.3-1.3-8 0v12c2.7-1.3 5.4-1.3 8 0z" />
-      </svg>
-    </span>
   )
 }

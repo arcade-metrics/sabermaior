@@ -3,7 +3,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Markdown from 'react-markdown'
 import { api, type ObraRef, type Resposta } from '../api'
 import type { Conversa, Rodada } from '../estado'
+import { Logotipo } from './Marca'
 import { sortearSugestoes } from '../sugestoes'
+
+// O que o Saber Maior é (e não é), à vista na tela de conversa.
+const AVISO =
+  'O Saber Maior não dá opiniões nem conselhos: ele entende o tema da sua pergunta e encontra as referências na literatura espírita do acervo.'
 
 type Props = {
   conversa?: Conversa
@@ -28,6 +33,7 @@ export function Chat({ conversa, perguntar, agentes, setAgentes, obra, tirarObra
   if (!rodadas.length) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-4 pb-10">
+        <Logotipo className="mb-6 h-20 w-auto sm:h-24" />
         <h1 className="mb-8 text-center text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
           {obra ? `O que você quer saber sobre ${obra.titulo}?` : 'Em que posso ajudar no seu estudo?'}
         </h1>
@@ -46,8 +52,9 @@ export function Chat({ conversa, perguntar, agentes, setAgentes, obra, tirarObra
               </button>
             ))}
           </div>
+          <p className="mx-auto mt-6 max-w-xl text-center text-xs text-balance text-suave">{AVISO}</p>
           {/* No celular a barra lateral fica na gaveta; aqui o apoio continua à vista. */}
-          <p className="mt-6 text-center text-xs text-suave md:hidden">
+          <p className="mt-3 text-center text-xs text-suave md:hidden">
             Gratuito, com contas abertas ·{' '}
             <a href="#/apoie" className="font-medium text-destaque hover:underline">
               Apoie
@@ -71,9 +78,7 @@ export function Chat({ conversa, perguntar, agentes, setAgentes, obra, tirarObra
       <div className="sticky bottom-0 bg-gradient-to-t from-fundo from-70% to-transparent pt-4">
         <div className="mx-auto w-full max-w-3xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Compositor {...{ perguntar, agentes, setAgentes, obra, tirarObra }} />
-          <p className="mt-2 text-center text-xs text-suave">
-            Respostas geradas a partir do acervo. Confira sempre as fontes citadas.
-          </p>
+          <p className="mt-2 text-center text-xs text-balance text-suave">{AVISO}</p>
         </div>
       </div>
     </>

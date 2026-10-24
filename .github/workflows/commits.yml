@@ -1,0 +1,28 @@
+# Mensagens de commit em inglês (ver CONTRIBUTING.md, "Fluxo").
+# Heurística: recusa títulos com acentos ou que começam com verbos comuns em português.
+name: Commits em inglês
+
+on:
+  pull_request:
+
+jobs:
+  idioma:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verificar títulos dos commits
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          verbos='^(Adiciona|Atualiza|Corrige|Cria|Ajusta|Melhora|Implementa|Altera|Troca|Inclui|Reordena|Oculta|Organiza|Prepara|Descreve|Mostra|Usa|Coloca|Deixa|Separa|Renomeia|Refatora|Documenta|Fase [0-9])\b'
+          ruins=$(git log --no-merges --format='%h %s' "$BASE..$HEAD" \
+            | grep -P "^\S+ (.*[À-ÿ]|$verbos)" || true)
+          if [ -n "$ruins" ]; then
+            echo "::error::Estes commits têm título em português; reescreva em inglês (git rebase -i, reword):"
+            echo "$ruins"
+            exit 1
+          fi
+          echo "Todos os títulos de commit estão em inglês."
