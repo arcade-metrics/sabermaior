@@ -20,13 +20,13 @@ def contexto(trechos):
     return "\n\n".join(blocos)
 
 
-def responder(conn, ia, pergunta, k=8, pensar=False, **filtros):
+def responder(conn, ia, pergunta, k=8, pensar=False, sistema=SISTEMA, **filtros):
     trechos = buscar(conn, ia, pergunta, k=k, **filtros)
     if not trechos:
         return {"resposta": "Nenhum trecho encontrado no acervo para essa pergunta.", "trechos": [], "citados": [],
                 "invalidas": []}
     texto = ia.chat([
-        {"role": "system", "content": SISTEMA},
+        {"role": "system", "content": sistema},
         {"role": "user", "content": f"Trechos:\n\n{contexto(trechos)}\n\nPergunta: {pergunta}"},
     ], temperatura=0.2, raciocinio=None if pensar else "none")
     numeros = sorted({int(n) for n in re.findall(r"\[(\d+)\]", texto)})

@@ -21,7 +21,7 @@ rerank = ["sentence-transformers>=3.0"]
 espirita-rag = "rag.cli:main"
 
 [tool.setuptools]
-packages = ["ia", "rag", "grafo"]
+packages = ["ia", "rag", "grafo", "agentes"]
 
 [tool.setuptools.package-data]
 rag = ["avaliacao.jsonl", "excluidas.csv", "ocultas.csv"]
