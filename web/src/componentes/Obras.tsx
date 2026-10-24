@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ExternalLink, MessageCircleQuestion, Search } from 'lucide-react'
+import { ArrowLeft, ExternalLink, LayoutGrid, List, MessageCircleQuestion, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { api, type Obra, type ObraDetalhe } from '../api'
+import { useVisaoObras } from '../estado'
 import { Capa } from './Chat'
 import { Carregando, Erro, classeCampo } from './comum'
 
@@ -21,6 +22,7 @@ function Lista() {
   const q = useQuery({ queryKey: ['obras'], queryFn: api.obras })
   const [filtro, setFiltro] = useState('')
   const [colecao, setColecao] = useState('')
+  const [visao, setVisao] = useVisaoObras()
 
   // Coleções da maior para a menor, com "Outras" sempre no fim.
   const colecoes = useMemo(() => {
@@ -43,16 +45,38 @@ function Lista() {
 
   return (
     <div className="space-y-5">
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-suave" aria-hidden />
-        <input
-          type="search"
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          placeholder="Filtrar por título ou autor"
-          aria-label="Filtrar obras"
-          className={`${classeCampo} pl-10`}
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-suave" aria-hidden />
+          <input
+            type="search"
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            placeholder="Filtrar por título ou autor"
+            aria-label="Filtrar obras"
+            className={`${classeCampo} pl-10`}
+          />
+        </div>
+        <div className="flex shrink-0 rounded-full border border-borda p-1" role="group" aria-label="Visualização">
+          {(
+            [
+              ['lista', List, 'Ver em lista'],
+              ['cards', LayoutGrid, 'Ver em cards'],
+            ] as const
+          ).map(([valor, Icone, rotulo]) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => setVisao(valor)}
+              aria-pressed={visao === valor}
+              aria-label={rotulo}
+              title={rotulo}
+              className="grid size-9 place-items-center rounded-full text-suave transition hover:text-texto aria-pressed:bg-lateral aria-pressed:text-texto"
+            >
+              <Icone className="size-4" aria-hidden />
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
@@ -71,6 +95,20 @@ function Lista() {
 
       {visiveis.length === 0 ? (
         <p className="py-6 text-suave">Nenhuma obra encontrada.</p>
+      ) : visao === 'cards' ? (
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
+          {visiveis.map((o) => (
+            <li key={o.id}>
+              <a href={`#/obras/${encodeURIComponent(o.id)}`} className="group block">
+                <span className="block transition group-hover:-translate-y-0.5">
+                  <Capa id={o.id} tamanho="card" />
+                </span>
+                <span className="mt-2 line-clamp-2 block text-sm font-medium group-hover:text-destaque">{o.titulo}</span>
+                <span className="block truncate text-xs text-suave">{autoria(o) || o.colecao}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       ) : (
         <ul className="divide-y divide-borda overflow-hidden rounded-2xl border border-borda">
           {visiveis.map((o) => (
@@ -79,6 +117,7 @@ function Lista() {
                 href={`#/obras/${encodeURIComponent(o.id)}`}
                 className="flex items-center gap-4 px-4 py-3 transition hover:bg-lateral"
               >
+                <Capa id={o.id} tamanho="lista" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{o.titulo}</span>
                   <span className="block truncate text-sm text-suave">{autoria(o) || o.colecao}</span>
