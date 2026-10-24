@@ -73,9 +73,12 @@ As pendências atualizadas estão em [`docs/status-e-proximos-passos.md`](docs/s
 1. Para mudanças maiores, abra uma issue antes, para combinarmos a abordagem.
 2. Crie um branch a partir de `main`, com um nome descritivo.
 3. Mantenha o estilo do código ao redor: nomes e comentários em português, funções curtas.
-4. **Se a mudança afeta a busca ou a resposta, rode `espirita-rag eval` antes e depois** e coloque os
+4. **Mensagens de commit em inglês**, no imperativo e com a primeira linha curta
+   (`Add brand logo to the sidebar`, `Fix chunking in FEB editions`). O código continua em português;
+   só o histórico do git é em inglês. Um check no pull request recusa commits com título em português.
+5. **Se a mudança afeta a busca ou a resposta, rode `espirita-rag eval` antes e depois** e coloque os
    dois resultados no pull request, mesmo se piorar. Medimos antes de afirmar.
-5. Abra o pull request explicando o que mudou e por quê.
+6. Abra o pull request explicando o que mudou e por quê.
 
 ### Princípios que valem para todo código
 
