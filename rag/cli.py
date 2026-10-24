@@ -20,6 +20,8 @@ from pathlib import Path
 from ia import IA, carregar
 from ia.config import RAIZ
 
+from grafo import consulta as grafo_consulta
+
 from . import avaliacao, db, indexar, sumario
 from .busca import buscar, referencia
 from .extracao import extrair, normalizar
@@ -148,6 +150,36 @@ def cmd_eval(args):
         avaliacao.rodar(conn, ia, Path(args.arquivo), k=args.k, detalhar=args.detalhar)
 
 
+def cmd_grafo_povoar(args):
+    ia = _ia(args)
+    with db.conectar(ia.config) as conn:
+        total = grafo_consulta.povoar(conn)
+        print(f"{total} conceitos (categorias/subcategorias/termos)")
+        if not args.sem_trechos:
+            n = grafo_consulta.ligar_trechos(conn, log=lambda m: print(f"  {m}", flush=True))
+            print(f"{n} ligações conceito-trecho (MENCIONA)")
+
+
+def cmd_grafo_ver(args):
+    ia = _ia(args)
+    with db.conectar(ia.config) as conn:
+        c = grafo_consulta.conceito(conn, args.conceito)
+    if not c:
+        print(f"conceito não encontrado: {args.conceito}")
+        return
+    print(f"{c['nome']} (nível {c['nivel']}, id={c['id']}, obra: {c['obra_origem'] or '-'})")
+    if c["sinonimos"]:
+        print(f"  sinônimos: {', '.join(c['sinonimos'])}")
+    if c["pai"]:
+        print(f"  pai: {c['pai']['nome']} ({c['pai']['id']})")
+    if c["filhos"]:
+        print(f"  filhos: {', '.join(f['nome'] for f in c['filhos'])}")
+    if c["trechos"]:
+        print("  trechos:")
+        for t in c["trechos"]:
+            print(f"    [{t['tipo']}] {t['titulo']}, p. {t['pagina']}: {t['trecho']}")
+
+
 def cmd_status(args):
     ia = _ia(args)
     print(ia.config)
@@ -215,6 +247,14 @@ def main(argv=None):
 
     s = sub.add_parser("status", help="configuração ativa e contagem do banco")
     s.set_defaults(func=cmd_status)
+
+    s = sub.add_parser("grafo-povoar", help="(Fase 3) insere a taxonomia semente e liga a trechos")
+    s.add_argument("--sem-trechos", action="store_true", help="só insere os conceitos, sem ligar a trechos")
+    s.set_defaults(func=cmd_grafo_povoar)
+
+    s = sub.add_parser("grafo-ver", help="(Fase 3) mostra um conceito, seus vizinhos e trechos")
+    s.add_argument("conceito", help="id (slug) ou nome do conceito")
+    s.set_defaults(func=cmd_grafo_ver)
 
     args = p.parse_args(argv)
     args.func(args)
