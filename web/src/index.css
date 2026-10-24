@@ -18,6 +18,18 @@
   --color-erro: var(--erro);
 }
 
+/* `escuro:` segue a mesma regra das variáveis: tema escuro escolhido, ou sistema escuro sem tema claro forçado. */
+@custom-variant escuro {
+  &:where([data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
 :root,
 :root[data-theme='light'] {
   --fundo: #ffffff;

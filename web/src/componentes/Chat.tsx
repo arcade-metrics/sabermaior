@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Markdown from 'react-markdown'
 import { api, type ObraRef, type Resposta } from '../api'
 import type { Conversa, Rodada } from '../estado'
+import { Logotipo } from './Marca'
 import { sortearSugestoes } from '../sugestoes'
 
 type Props = {
@@ -28,6 +29,7 @@ export function Chat({ conversa, perguntar, agentes, setAgentes, obra, tirarObra
   if (!rodadas.length) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-4 pb-10">
+        <Logotipo className="mb-6 h-20 w-auto sm:h-24" />
         <h1 className="mb-8 text-center text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
           {obra ? `O que você quer saber sobre ${obra.titulo}?` : 'Em que posso ajudar no seu estudo?'}
         </h1>
