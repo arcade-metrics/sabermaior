@@ -53,6 +53,7 @@ def cmd_ingest(args):
         pdfs = pdfs[:args.limite]
     print(f"{len(pdfs)} PDFs; embeddings {ia.config.embed_model} em {ia.config.embed_base_url}", flush=True)
     total, inicio = 0, time.monotonic()
+    excluidas = indexar.ler_excluidas()
     with db.conectar(ia.config) as conn:
         for i, pdf in enumerate(pdfs, 1):
             try:
@@ -62,10 +63,13 @@ def cmd_ingest(args):
             print(f"[{i}/{len(pdfs)}] {rel}", flush=True)
             try:
                 n = indexar.ingerir(pdf, catalogo.get(rel, {}), ia, conn, refazer=args.refazer,
-                                    usar_llm=not args.sem_llm, log=lambda m: print(m, flush=True))
+                                    usar_llm=not args.sem_llm, excluidas=excluidas,
+                                    log=lambda m: print(m, flush=True))
             except Exception as e:  # um PDF ruim não derruba o lote
                 conn.rollback()
                 print(f"  ERRO: {type(e).__name__}: {e}", flush=True)
+                continue
+            if n is None:
                 continue
             if n == 0:
                 print("  já indexado (use --refazer)", flush=True)

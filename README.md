@@ -14,7 +14,7 @@ rode o `finder` para baixar o acervo e `espirita-rag ingest` para montar o banco
 
 ```
 cp .env.dev.example .env.dev                                # opcional: sem ele valem os mesmos padrões
-docker compose -f infra/docker-compose.yml up -d postgres   # Postgres + pgvector em 127.0.0.1:5434
+docker compose -f infra/docker-compose.yml up -d postgres   # Postgres + pgvector + pg_search (BM25) em 127.0.0.1:5434
 # Ollama: abrir o app (roda nativo no Windows, usa a GPU)
 pip install -e .            # ou .[rerank] para o reranker local (torch CUDA)
 espirita-rag status
@@ -66,27 +66,69 @@ espirita-rag eval [--detalhar]                        # recall@k sobre rag/avali
 
 ## Qualidade da busca (`espirita-rag eval`)
 
-Acervo de 23/10/2026: 432 obras, 100 mil trechos (pt 59 mil, fr 13 mil, es 13 mil, en 11 mil,
-eo 4 mil). 27 consultas (23 perguntas parafraseadas, 4 palavras-chave como "aeróbus"), cada uma
-com a passagem esperada na obra de origem. Todas as linhas, menos a segunda, usam o idioma da pergunta:
+Acervo de 23/10/2026: 342 obras, 53.395 trechos (pt 319 obras e 49.065 trechos; o resto são
+23 obras em es, en, fr e eo sem equivalente em pt). 25 consultas em pt (21 perguntas parafraseadas,
+4 palavras-chave como "aeróbus"), cada uma com a passagem esperada na obra de origem. Todas as
+linhas, menos a segunda, usam o idioma da pergunta:
 
 | configuração | R@1 | R@5 | R@10 | MRR |
 |---|---|---|---|---|
-| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,41** | **0,85** | **0,89** | **0,59** |
-| vetorial, todos os idiomas | 0,30 | 0,70 | 0,81 | 0,46 |
-| vetorial | 0,33 | 0,81 | 0,85 | 0,53 |
-| textual (tsvector, E) | 0,15 | 0,22 | 0,22 | 0,18 |
-| híbrida RRF | 0,33 | 0,74 | 0,85 | 0,49 |
-| vetorial + reranker bge-reranker-v2-m3 | 0,44 | 0,67 | 0,74 | 0,53 |
+| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,28** | **0,60** | **0,76** | **0,41** |
+| vetorial | 0,24 | 0,56 | 0,72 | 0,37 |
+| híbrida RRF (BM25 completo, não só nas palavras-chave) | 0,24 | 0,56 | 0,72 | 0,36 |
+| vetorial, todos os idiomas | 0,24 | 0,48 | 0,72 | 0,35 |
+| textual (BM25, ParadeDB `pg_search`, E) | 0,12 | 0,16 | 0,20 | 0,15 |
+
+(Pequenas variações de ±1 pergunta entre rodadas vêm da busca HNSW, que é aproximada; não é ruído
+de medição grave num conjunto de 25 perguntas, mas também não deve ser lido como sinal fino.)
+
+O reranker bge-reranker-v2-m3 foi medido antes da limpeza (27 consultas, com traduções e
+duplicatas): R@1 0,44, R@5 0,67, R@10 0,74, MRR 0,53, contra 0,41, 0,85, 0,89 e 0,59 do `auto`
+na mesma base; o número de referência mudou, veja abaixo.
 
 O que explica os números:
-- O acervo tem várias traduções das mesmas obras (o LE em pt, es, en, fr, eo). O bge-m3 é
-  multilíngue e, sem filtro, as traduções tomam o topo. Por isso a busca usa o idioma da pergunta
-  (`--idioma auto`); `--idioma todos` desliga o filtro.
-- O vetor perde termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha. Já
-  em perguntas em linguagem natural, o `ts_rank` (sem IDF) só atrapalha. Daí o modo `auto`: sem
-  "?" e com até 4 palavras vai na híbrida, senão só no vetor. BM25 de verdade (ParadeDB
-  `pg_search`, Fase 2) pode tornar a híbrida boa para tudo.
+- A prioridade é pt-BR. As traduções de obras que já existem em pt (72 obras: o LE em es, en, fr,
+  eo, a Revue Spirite etc.) foram retiradas e estão listadas em `rag/excluidas.csv`, com a obra
+  equivalente e a similaridade medida pelo bge-m3; o `ingest` pula esses PDFs. Ficaram só as
+  obras sem equivalente em pt. Mesmo assim a busca usa o idioma da pergunta (`--idioma auto`), e
+  `--idioma todos` desliga o filtro.
+- O acervo também tinha 18 duplicatas dentro do próprio pt: os clássicos de Kardec e a Revista
+  Espírita existiam numa edição do `consolador` e noutra da FEB (tradução Guillon Ribeiro ou
+  Quintão), e dois PDFs da FEB tinham conteúdo idêntico sob nomes diferentes. Ficou só a edição da
+  FEB, por ser a tradução de referência; os descartes também estão em `rag/excluidas.csv`
+  (`motivo=duplicata_edicao` ou `arquivo_duplicado`).
+- Essa limpeza baixou o `eval` de R@5 0,88 para 0,64. Duas causas, achadas ao investigar:
+  1. **Bug de chunking nas edições "WEB" da FEB, corrigido.** O número da pergunta vinha num
+     parágrafo isolado do PDF ("1." numa linha, "Que é Deus?" na seguinte — layout em coluna), e às
+     vezes um cabeçalho de página repetido ("Parte Primeira – Capítulo I") se intrometia no meio de
+     uma pergunta. O detector de itens não reconhecia nada disso: no Livro dos Espíritos, só 1% dos
+     trechos ficavam marcados com o número da questão (deveria ser quase 100%), e várias perguntas
+     acabavam fatiadas ou mescladas. Com a correção (`rag/chunking.py`), cada trecho citável
+     (questão do LE, item do ESE) passou a ser exatamente um item, confirmado item a item nos 7
+     livros clássicos e nos 9 anos da Revista Espírita reingeridos. Isso levou o `eval` de R@1 0,28
+     para 0,32 e o MRR de 0,42 para 0,45; o R@5 não mudou.
+  2. **Perda da redundância das duplicatas, sem solução — é o preço esperado da limpeza.** Com duas
+     edições do mesmo livro no banco, uma pergunta tinha duas chances de acertar a passagem certa;
+     com uma só, só uma. Nas perguntas mais genéricas (definição de Deus, livre-arbítrio), outras
+     obras do acervo (apostilas da FEB, "Estudo Aprofundado da Doutrina Espírita") competem pelo
+     mesmo espaço vetorial e às vezes ficam à frente do Livro dos Espíritos. Confirmado manualmente:
+     a frase esperada aparece, literal, na edição mantida — ela só não entra no top 5 para certas
+     perguntas. BM25 (Fase 2) é a aposta para resgatar esses casos por palavra-chave exata.
+- **Fase 2 concluída: BM25 real.** O `ts_rank`/`tsvector` do Postgres foi trocado pelo `pg_search`
+  da ParadeDB (índice BM25 de verdade, com IDF). A imagem do Postgres mudou de
+  `pgvector/pgvector:pg17` para `paradedb/paradedb:0.26.3-pg17` (mesma versão do Postgres, pgvector
+  incluído); `sql/002_bm25.sql` cria a extensão, uma coluna gerada sem acento
+  (`conteudo_simples`) e o índice BM25 (tokenizer `icu`, stemmer `Portuguese`). A busca textual usa
+  `paradedb.match(..., conjunction_mode => true)` (todas as palavras, E), que é a forma seca de
+  passar texto do usuário sem risco de injeção na sintaxe de consulta do `pg_search`. O vetor
+  continua perdendo termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha —
+  nas 4 perguntas de palavra-chave do `eval`, BM25 acerta a posição 1 ou 2, igual ou melhor que o
+  `ts_rank` antigo.
+- **Achado:** com BM25 de verdade, a híbrida (RRF) deixou de piorar perguntas em linguagem natural
+  — ela empata com o vetorial puro nas 25 perguntas (R@5 0,56 nas duas), contra uma diferença clara
+  quando a textual era `ts_rank`. Ainda não é evidência suficiente (25 perguntas é pouco) para trocar
+  o modo `auto` por "híbrida sempre", mas é um motivo para reavaliar isso quando o conjunto de
+  avaliação crescer.
 - O reranker melhora o 1º lugar, mas piora o top 5/10: prefere as apostilas da FEB que citam a
   passagem à obra original. Fica desligado (`RERANK_PROVIDER=none`); ligue com
   `RERANK_PROVIDER=local` para testar.

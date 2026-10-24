@@ -15,6 +15,8 @@ from . import chunking, sumario
 from .extracao import CONFIG_FTS, extrair, idioma
 
 LOTE_EMBEDDINGS = 32
+# Traduções e duplicatas de obras que já existem em pt-BR: ficam fora do banco.
+EXCLUIDAS = Path(__file__).with_name("excluidas.csv")
 
 
 def slug(texto, limite=50):
@@ -38,6 +40,13 @@ def ler_catalogo(dados):
         return {}
     with open(arquivo, encoding="utf-8-sig", newline="") as f:
         return {Path(l["arquivo"]).as_posix(): l for l in csv.DictReader(f, delimiter=";")}
+
+
+def ler_excluidas():
+    if not EXCLUIDAS.exists():
+        return {}
+    with open(EXCLUIDAS, encoding="utf-8", newline="") as f:
+        return {l["sha256"]: l for l in csv.DictReader(f, delimiter=";")}
 
 
 def cabecalho(manifesto, meta):
@@ -95,10 +104,17 @@ def manifesto(caminho, linhas, info, ia, usar_llm):
     return m, entradas, paginas_toc
 
 
-def ingerir(caminho, info, ia, conn, refazer=False, usar_llm=True, log=print):
-    """Ingere um PDF. Devolve o número de chunks gravados (0 = pulado)."""
+def ingerir(caminho, info, ia, conn, refazer=False, usar_llm=True, excluidas=None, log=print):
+    """Ingere um PDF. Devolve o número de chunks gravados (0 = pulado,
+    None = está em excluidas.csv)."""
     caminho = Path(caminho)
     hash_ = info.get("sha256") or sha256(caminho)
+    if excluidas and hash_ in excluidas:
+        e = excluidas[hash_]
+        motivo = {"traducao": "tradução de", "duplicata_edicao": "outra edição de",
+                  "arquivo_duplicado": "mesmo conteúdo de"}.get(e["motivo"], "duplicata de")
+        log(f"  excluída: {motivo} \"{e['mantido']}\" (rag/excluidas.csv)")
+        return None
     modelo = ia.config.embed_model
     if not refazer:
         ja = conn.execute("SELECT 1 FROM obras o JOIN trechos t ON t.obra_id = o.id "
