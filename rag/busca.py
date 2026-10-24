@@ -17,7 +17,7 @@ _COLUNAS = """t.id, t.obra_id, t.conteudo, t.metadados, t.pagina_ini, t.pagina_f
 
 
 def _filtros(obra, idioma):
-    sql, params = "", {}
+    sql, params = " AND NOT o.oculta", {}  # rag/ocultas.csv: indexadas, mas nunca consultadas
     if obra:
         sql += " AND (o.id = %(obra)s OR f_unaccent(o.titulo) ILIKE f_unaccent(%(obra_like)s))"
         params.update(obra=obra, obra_like=f"%{obra}%")

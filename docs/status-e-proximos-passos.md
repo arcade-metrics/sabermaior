@@ -96,23 +96,16 @@ porque prefere apostilas que citam a passagem à obra original. Por isso está d
 - [ ] Com mais perguntas no `eval`, testar se vale trocar `auto` por "híbrida sempre" (ver achado em
       "Qualidade medida")
 
-**Produção (VM)**
-
-- [ ] Escolher a VM e decidir a geração: vLLM com GPU ou API hospedada
-- [ ] Criar o `.env.prod` real a partir do `.env.prod.example` e trocar a senha do banco
-- [ ] Levar o banco com `pg_dump` / `pg_restore` e subir o compose com `--profile prod`
-- [ ] Rodar `espirita-rag eval` na VM e conferir que os números batem com os locais
-
-**Interface**
-
-- [ ] API HTTP para `search` e `ask` (hoje só há a CLI)
-- [ ] Interface web simples para testar com usuários
-
 **Fase 2: busca híbrida com BM25 — concluída**
 
 - [x] Trocar o `ts_rank` por BM25 real (ParadeDB `pg_search`): imagem `paradedb/paradedb:0.26.3-pg17`,
       `sql/002_bm25.sql`, `rag/busca.py` usa `paradedb.match(conjunction_mode => true)`
 - [ ] Reavaliar o reranker agora com BM25, ou rebaixar apostilas que citam a obra original
+
+**Interface — próximo passo**
+
+- [ ] API HTTP para `search` e `ask` (hoje só há a CLI)
+- [ ] Interface web simples para testar com usuários
 
 **Fase 3: grafo de conhecimento**
 
@@ -125,4 +118,9 @@ porque prefere apostilas que citam a passagem à obra original. Por isso está d
 - [ ] Agentes Histórico, Doutrinário e de Citação, com checagem de fontes
 - [ ] Orquestração entre eles sobre a camada `ia/`
 
-Pergunta em aberto: a ordem entre produção, interface e Fase 2 ainda não foi decidida.
+**Produção (VM) — fica para depois da Interface e da Fase 3**
+
+- [ ] Escolher a VM e decidir a geração: vLLM com GPU ou API hospedada
+- [ ] Criar o `.env.prod` real a partir do `.env.prod.example` e trocar a senha do banco
+- [ ] Levar o banco com `pg_dump` / `pg_restore` e subir o compose com `--profile prod`
+- [ ] Rodar `espirita-rag eval` na VM e conferir que os números batem com os locais

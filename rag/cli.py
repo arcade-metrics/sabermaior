@@ -3,6 +3,7 @@
 Exemplos:
   espirita-rag init-db
   espirita-rag ingest --filtro "livro dos espiritos" --limite 3
+  espirita-rag ocultar
   espirita-rag parse-toc --file livro.pdf --output-manifest manifesto.json
   espirita-rag search "Que é Deus?"
   espirita-rag ask "Qual a diferença entre alma e Espírito?"
@@ -74,7 +75,18 @@ def cmd_ingest(args):
             if n == 0:
                 print("  já indexado (use --refazer)", flush=True)
             total += n
-    print(f"Fim: {total} chunks em {time.monotonic() - inicio:.0f}s")
+        obras, trechos = indexar.aplicar_ocultas(conn)
+    print(f"Fim: {total} chunks em {time.monotonic() - inicio:.0f}s; ocultas: {obras} obras ({trechos} trechos)")
+
+
+def cmd_ocultar(args):
+    ia = _ia(args)
+    with db.conectar(ia.config) as conn:
+        obras, trechos = indexar.aplicar_ocultas(conn)
+        print(f"{obras} obras ocultas ({trechos} trechos), conforme {indexar.OCULTAS.name}:")
+        for linha in conn.execute("SELECT fonte, manifesto->>'categoria', count(*) FROM obras WHERE oculta "
+                                  "GROUP BY 1, 2 ORDER BY 1, 2"):
+            print(f"  {linha[0]}/{linha[1]}: {linha[2]}")
 
 
 def cmd_parse_toc(args):
@@ -141,8 +153,12 @@ def cmd_status(args):
     print(ia.config)
     with db.conectar(ia.config) as conn:
         for linha in conn.execute("SELECT o.idioma, count(DISTINCT o.id), count(t.id) FROM obras o "
-                                  "LEFT JOIN trechos t ON t.obra_id = o.id GROUP BY 1 ORDER BY 3 DESC"):
+                                  "LEFT JOIN trechos t ON t.obra_id = o.id WHERE NOT o.oculta "
+                                  "GROUP BY 1 ORDER BY 3 DESC"):
             print(f"  {linha[0]}: {linha[1]} obras, {linha[2]} trechos")
+        obras, trechos = conn.execute("SELECT count(DISTINCT o.id), count(t.id) FROM obras o "
+                                      "LEFT JOIN trechos t ON t.obra_id = o.id WHERE o.oculta").fetchone()
+        print(f"  ocultas (rag/ocultas.csv): {obras} obras, {trechos} trechos")
         for linha in conn.execute("SELECT modelo_embedding, count(*) FROM trechos GROUP BY 1"):
             print(f"  modelo {linha[0]}: {linha[1]} trechos")
 
@@ -165,6 +181,9 @@ def main(argv=None):
     s.add_argument("--refazer", action="store_true", help="reindexa mesmo se já estiver no banco")
     s.add_argument("--sem-llm", action="store_true", help="não usa a LLM para metadados e sumário")
     s.set_defaults(func=cmd_ingest)
+
+    s = sub.add_parser("ocultar", help="aplica rag/ocultas.csv: obras indexadas que nenhuma consulta usa")
+    s.set_defaults(func=cmd_ocultar)
 
     s = sub.add_parser("parse-toc", help="gera o manifesto (sumário localizado) de um PDF para revisão")
     s.add_argument("--file", required=True)
