@@ -1,6 +1,6 @@
 # finder
 
-Busca e baixa obras espíritas em domínio público de:
+Busca e baixa obras espíritas distribuídas gratuitamente por:
 
 - `consolador`: biblioteca virtual de O Consolador
 - `feb`: downloads da FEB (as categorias administrativas ficam de fora, veja `IGNORAR` em `finder/fontes/feb.py`)

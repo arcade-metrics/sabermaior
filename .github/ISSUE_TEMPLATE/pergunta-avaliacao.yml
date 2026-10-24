@@ -1,0 +1,48 @@
+name: Pergunta de avaliação
+description: Sugira uma pergunta com resposta conhecida para medir a qualidade da busca
+title: "[avaliação] "
+labels: ["avaliação"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado! Cada pergunta entra em `rag/avaliacao.jsonl` e passa a ser usada para medir cada mudança na busca.
+        A frase esperada deve ser copiada **literalmente** do trecho que responde à pergunta.
+  - type: input
+    id: pergunta
+    attributes:
+      label: Pergunta
+      description: Como alguém perguntaria de verdade, em pt-BR.
+      placeholder: Por que os Espíritos precisam encarnar?
+    validations:
+      required: true
+  - type: input
+    id: obra
+    attributes:
+      label: Obra
+      description: A obra onde está a resposta.
+      placeholder: O Livro dos Espíritos
+    validations:
+      required: true
+  - type: input
+    id: esperado
+    attributes:
+      label: Frase esperada
+      description: Trecho curto, copiado exatamente do texto que responde.
+      placeholder: fazê-los chegar à perfeição
+    validations:
+      required: true
+  - type: input
+    id: localizacao
+    attributes:
+      label: Onde está (opcional)
+      description: Capítulo, questão, item ou página.
+      placeholder: Parte Segunda, Capítulo II, questão 132
+  - type: dropdown
+    id: resultado
+    attributes:
+      label: O Saber Maior acerta hoje? (opcional)
+      options:
+        - Não testei
+        - Acerta
+        - Erra ou não encontra

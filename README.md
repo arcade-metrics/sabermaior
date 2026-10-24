@@ -1,149 +1,219 @@
-# sabermaior
+<div align="center">
 
-- `finder/`: busca e baixa o acervo (PDFs + `catalogo.csv`). Veja `finder/README.md`.
-- `ia/`: acesso à IA local ou remota por uma API compatível com OpenAI. Serve a este e a outros projetos.
-- `rag/`: pipeline RAG (`espirita-rag`): ingestão, busca híbrida e resposta com citação.
+# Saber Maior
 
-Arquitetura e roteiro: `docs/Arquitetura do Pipeline RAG e Sistema Agêntico para Literatura Espírita.md`.
-O que já foi feito e o que falta: `docs/status-e-proximos-passos.md`.
+**Estudo da literatura espírita com as fontes à vista, gratuito e em aberto.**
 
-O repositório tem só o código. O acervo (`finder/dados/`), o banco e os `.env.*` ficam fora do git:
-rode o `finder` para baixar o acervo e `espirita-rag ingest` para montar o banco.
+Um assistente que responde perguntas a partir das obras espíritas e mostra, em cada frase,
+o trecho, a obra, o capítulo e a página de onde tirou o que diz.
 
-## Subir o ambiente (dev, sob demanda)
+[![Licença: AGPL-3.0](https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0-blue)](LICENSE)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Status: em desenvolvimento](https://img.shields.io/badge/status-em%20desenvolvimento-orange)
+![Idioma: pt-BR](https://img.shields.io/badge/idioma-pt--BR-green)
 
+[O que é](#o-que-é) · [Fontes](#fontes) · [Como funciona](#como-funciona) · [Qualidade](#qualidade-medida) · [Roteiro](#roteiro) · [**Participe**](#participe)
+
+</div>
+
+<p align="center">
+  <img src="docs/imagens/interface-chat.png" alt="Interface do Saber Maior: a pergunta 'Qual o objetivo da encarnação?' respondida com citações numeradas para O Livro dos Espíritos, A Gênese e O Céu e o Inferno, com capítulo, item e página." width="900">
+</p>
+
+## O que é
+
+O Saber Maior é um assistente de estudo da literatura espírita. Você faz uma pergunta em linguagem
+natural, ele busca as passagens mais relevantes num acervo de centenas de obras e escreve uma
+resposta em que **cada afirmação aponta para o trecho que a sustenta**. Um clique abre o texto
+original, com obra, capítulo, item e página.
+
+Princípios (versão completa no [Manifesto](https://github.com/arcade-metrics/sabermaior/blob/main/web/src/componentes/Manifesto.tsx), também publicado na interface):
+
+- **Toda resposta mostra de onde veio.** Citações são validadas depois da geração: se o modelo
+  aponta para um trecho que não existe, a citação é descartada. Se o acervo não basta para
+  responder, a resposta deve dizer isso, e não preencher a lacuna com invenção.
+- **Uma ferramenta de estudo, não uma autoridade.** A IA erra. A palavra final é das obras e de
+  quem as lê. O Saber Maior não substitui a leitura, o grupo de estudo nem a reflexão de cada um.
+- **Código aberto e respostas auditáveis.** Código, processo de busca e conjunto de perguntas de
+  avaliação estão neste repositório.
+- **Método científico, inclusive sobre nós mesmos.** Cada mudança é medida contra perguntas com
+  resposta conhecida, e os números ficam registrados, os bons e os ruins.
+- **Roda com IA aberta e local.** Modelos abertos (Qwen, Gemma, bge-m3) servidos pelo Ollama; o
+  mesmo código troca para uma VM ou API hospedada só por variável de ambiente.
+- **pt-BR em primeiro lugar.** O acervo, a avaliação e as respostas priorizam o português do Brasil.
+
+## Fontes
+
+As obras vêm de editoras e sites espíritas que as **distribuem gratuitamente** na internet. O crédito
+é deles.
+
+| Fonte | O que oferece | PDFs coletados |
+|---|---|---:|
+| [O Consolador](https://www.oconsolador.com.br/linkfixo/bibliotecavirtual/principal.html) | Biblioteca virtual: Kardec, Chico Xavier, Divaldo Franco e outros | 286 |
+| [FEB — Federação Espírita Brasileira](https://febnet.org.br/downloads-categorias/) | Downloads da FEB, inclusive as traduções de referência de Kardec (Guillon Ribeiro) e o Estudo Sistematizado | 143 |
+| [Luz Espírita](https://www.luzespirita.org.br/index.php?lisPage=enciclopedia) | PDFs citados nos verbetes da enciclopédia | 11 |
+
+**Acervo indexado (outubro de 2026):** 342 obras e 53.395 trechos, dos quais 319 obras e 49.065
+trechos em pt-BR. O restante são obras em espanhol, inglês, francês e esperanto sem equivalente em
+português.
+
+**Curadoria documentada.** 90 PDFs foram retirados de propósito: 72 traduções de obras que já
+existem em pt-BR e 18 edições repetidas da mesma obra (quando havia duas, ficou a da FEB, por ser a
+tradução de referência). Cada exclusão, com o motivo e a obra que ficou, está em
+[`rag/excluidas.csv`](rag/excluidas.csv).
+
+**Rastreabilidade.** O coletor ([`finder/`](finder/)) registra, para cada PDF, o hash sha256, a URL de
+origem, a data e hora do download e os cabeçalhos HTTP. Ele faz uma requisição por vez, espera de 3 a
+7 segundos entre elas e respeita o `robots.txt` de cada site.
+
+> **Os PDFs não estão neste repositório.** Aqui fica só o código que os busca nas fontes originais.
+> A distribuição das obras continua sendo das editoras e sites que as publicam. Se você representa
+> uma dessas fontes e quer que algo mude, escreva para [edu@arcademetrics.com](mailto:edu@arcademetrics.com).
+
+### Referências
+
+- Ragacini, L. A. *Proposta de elaboração de um Tesauro Espírita: categorização segundo as obras de
+  Kardec*. Novas Edições Acadêmicas, 2017. Base da taxonomia de conceitos do grafo.
+- Mello, B. E. de. *Ontology of Monotheism: road map to reach the OntoM*. UFSC, 2018. Referência para
+  uma futura exportação do grafo em RDF/OWL.
+- Padrões W3C e de catalogação: [SKOS](https://www.w3.org/TR/skos-reference/) (hierarquia de
+  conceitos), Dublin Core / FRBR (obra e edição), [schema.org](https://schema.org/) `Person` e
+  `CreativeWork`.
+
+## Como funciona
+
+```mermaid
+flowchart LR
+    A[PDFs das fontes] --> B[Extração<br/>texto limpo, sem cabeçalho e rodapé]
+    B --> C[Sumário e metadados<br/>marcadores, regex, LLM]
+    C --> D[Chunking<br/>por questão e item numerado]
+    D --> E[(PostgreSQL<br/>pgvector + BM25)]
+    Q([Pergunta]) --> F[Busca híbrida<br/>vetorial + BM25, RRF]
+    E --> F
+    F --> G[Geração<br/>LLM local]
+    G --> H[Validação das citações]
+    H --> R([Resposta citada])
 ```
-cp .env.dev.example .env.dev                                # opcional: sem ele valem os mesmos padrões
-docker compose -f infra/docker-compose.yml up -d postgres   # Postgres + pgvector + pg_search (BM25) em 127.0.0.1:5434
-# Ollama: abrir o app (roda nativo no Windows, usa a GPU)
-pip install -e .            # ou .[rerank] para o reranker local (torch CUDA)
-espirita-rag status
-```
 
-Modelos no Ollama: `ollama pull bge-m3` (embeddings) e `ollama pull qwen3:14b` (geração).
-Variáveis de usuário do Ollama: `OLLAMA_CONTEXT_LENGTH=16384`, `OLLAMA_FLASH_ATTENTION=1`,
-`OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_MAX_LOADED_MODELS=2`, `OLLAMA_KEEP_ALIVE=10m`. Sem o
-`OLLAMA_CONTEXT_LENGTH` o contexto fica em 4096 e corta os trechos do RAG sem avisar.
+| Etapa | O que faz e por quê |
+|---|---|
+| **Extração** | PyMuPDF lê o PDF, remove cabeçalhos, rodapés e notas, desfaz a hifenização e detecta o idioma. |
+| **Sumário e metadados** | Lê o sumário pelos marcadores do PDF; se não houver, por expressões regulares; em último caso, com a LLM. Título, autor, médium, autor espiritual, tradutor e editora ficam num manifesto por obra. |
+| **Chunking** | Corta nos títulos e agrupa por questão ou item numerado, para que "O Livro dos Espíritos, questão 132" seja exatamente um trecho citável. Na prosa, ~1.400 caracteres com sobreposição. |
+| **Indexação** | Embeddings `bge-m3` (multilíngue, 1024 dimensões) com índice HNSW, mais um índice BM25 real (ParadeDB `pg_search`, stemmer português), tudo num único PostgreSQL. |
+| **Busca** | O vetor entende paráfrases; o BM25 acha termos raros e exatos ("aeróbus") que o vetor perde. As duas listas são combinadas por Reciprocal Rank Fusion, filtradas pelo idioma da pergunta. |
+| **Resposta** | Um modelo aberto (`qwen3:14b` por padrão) escreve só com base nos trechos recuperados, citando cada um pelo número. Depois, cada citação é conferida contra os trechos reais. |
 
-Use `127.0.0.1`, não `localhost`: no Windows, `localhost` tenta primeiro o IPv6 e cada conexão
-pode levar segundos.
+**Em andamento:** um **grafo de conceitos** doutrinários (perispírito, reencarnação, causa e efeito...)
+ligado às passagens que os tratam, com taxonomia semente do Tesauro Espírita, e **agentes
+especializados** (Histórico, Doutrinário e de Citação) que dividem a pergunta e checam as fontes uns
+dos outros.
 
-## Dev e produção
+Arquitetura completa: [`docs/Arquitetura do Pipeline RAG e Sistema Agêntico para Literatura Espírita.md`](docs/Arquitetura%20do%20Pipeline%20RAG%20e%20Sistema%20Ag%C3%AAntico%20para%20Literatura%20Esp%C3%ADrita.md)
+· Ontologia: [`docs/proposta-ontologia-fase3.md`](docs/proposta-ontologia-fase3.md)
 
-O código só fala com `/v1/chat/completions` e `/v1/embeddings`. Quem atende (Ollama, vLLM, TEI,
-API hospedada) é escolhido por variável de ambiente:
+## Qualidade medida
 
-| | dev (`.env.dev`) | prod (`.env.prod`, modelo em `.env.prod.example`) |
-|---|---|---|
-| geração | Ollama `qwen3:14b` | vLLM na VM com GPU, ou API hospedada |
-| embeddings | Ollama `bge-m3` | TEI `BAAI/bge-m3` (CPU basta: só embeda a pergunta) |
-| reranker | `none` ou `local` (sentence-transformers) | TEI `bge-reranker-v2-m3` |
-| banco | compose `postgres` | compose `postgres` (mesma imagem) |
+A busca é avaliada com `espirita-rag eval` sobre um conjunto de perguntas em pt-BR, cada uma com a
+passagem esperada na obra de origem ([`rag/avaliacao.jsonl`](rag/avaliacao.jsonl)). R@k é a fração de
+perguntas em que a passagem certa aparece entre os *k* primeiros resultados.
 
-`IA_PERFIL=prod espirita-rag ask "..."` troca tudo sem mudar código. Variáveis definidas no
-ambiente têm prioridade sobre o arquivo.
-
-Estratégia recomendada: a ingestão (pesada, usa LLM e GPU) roda sempre local; a VM recebe o banco
-pronto (`pg_dump` / `pg_restore`) e só embeda a pergunta e gera a resposta.
-
-O modelo de embedding fica gravado em cada trecho (`modelo_embedding`). Trocar de modelo exige
-reindexar (`espirita-rag ingest --refazer`). Medido em 23/10/2026: bge-m3 no Ollama e no TEI
-(`cpu-1.8`) dão vetores idênticos (cosseno 1,0000) e o mesmo resultado no `eval`; o TEI em CPU
-embeda uma pergunta em ~24 ms. `EMBED_MODEL` deve continuar `bge-m3` em produção (é o nome gravado
-no banco; o TEI ignora esse campo).
-
-## Uso
-
-```
-espirita-rag init-db                                  # reaplica sql/*.sql (idempotente)
-espirita-rag ingest                                   # todo finder/dados; pula o que já está no banco
-espirita-rag ingest --filtro "nosso lar" --refazer
-espirita-rag parse-toc --file livro.pdf --output-manifest manifesto.json   # revisar sumário
-espirita-rag search "Que é Deus?" -k 5 [--modo auto|vetorial|hibrida|textual] [--obra "Livro dos Espíritos"] [--idioma todos]
-espirita-rag ask "Qual o objetivo da encarnação?" [--pensar] [--modelo gemma3:12b]
-espirita-rag eval [--detalhar]                        # recall@k sobre rag/avaliacao.jsonl
-```
-
-## Qualidade da busca (`espirita-rag eval`)
-
-Acervo de 23/10/2026: 342 obras, 53.395 trechos (pt 319 obras e 49.065 trechos; o resto são
-23 obras em es, en, fr e eo sem equivalente em pt). 25 consultas em pt (21 perguntas parafraseadas,
-4 palavras-chave como "aeróbus"), cada uma com a passagem esperada na obra de origem. Todas as
-linhas, menos a segunda, usam o idioma da pergunta:
-
-| configuração | R@1 | R@5 | R@10 | MRR |
-|---|---|---|---|---|
-| **auto (padrão): vetorial para perguntas, híbrida para palavras-chave** | **0,28** | **0,60** | **0,76** | **0,41** |
+| Modo de busca | R@1 | R@5 | R@10 | MRR |
+|---|---:|---:|---:|---:|
+| **auto (padrão):** vetorial para perguntas, híbrida para palavras-chave | **0,28** | **0,60** | **0,76** | **0,41** |
 | vetorial | 0,24 | 0,56 | 0,72 | 0,37 |
-| híbrida RRF (BM25 completo, não só nas palavras-chave) | 0,24 | 0,56 | 0,72 | 0,36 |
-| vetorial, todos os idiomas | 0,24 | 0,48 | 0,72 | 0,35 |
-| textual (BM25, ParadeDB `pg_search`, E) | 0,12 | 0,16 | 0,20 | 0,15 |
+| híbrida (RRF) | 0,24 | 0,56 | 0,72 | 0,36 |
+| textual (BM25) | 0,12 | 0,16 | 0,20 | 0,15 |
 
-(Pequenas variações de ±1 pergunta entre rodadas vêm da busca HNSW, que é aproximada; não é ruído
-de medição grave num conjunto de 25 perguntas, mas também não deve ser lido como sinal fino.)
+São só **25 perguntas**, pouco para conclusões finas. Ampliar esse conjunto é hoje a contribuição
+mais valiosa para o projeto ([veja como](#participe)). A análise completa, inclusive do que piorou
+e por quê, está em [`docs/status-e-proximos-passos.md`](docs/status-e-proximos-passos.md).
 
-O reranker bge-reranker-v2-m3 foi medido antes da limpeza (27 consultas, com traduções e
-duplicatas): R@1 0,44, R@5 0,67, R@10 0,74, MRR 0,53, contra 0,41, 0,85, 0,89 e 0,59 do `auto`
-na mesma base; o número de referência mudou, veja abaixo.
+## Roteiro
 
-O que explica os números:
-- A prioridade é pt-BR. As traduções de obras que já existem em pt (72 obras: o LE em es, en, fr,
-  eo, a Revue Spirite etc.) foram retiradas e estão listadas em `rag/excluidas.csv`, com a obra
-  equivalente e a similaridade medida pelo bge-m3; o `ingest` pula esses PDFs. Ficaram só as
-  obras sem equivalente em pt. Mesmo assim a busca usa o idioma da pergunta (`--idioma auto`), e
-  `--idioma todos` desliga o filtro.
-- O acervo também tinha 18 duplicatas dentro do próprio pt: os clássicos de Kardec e a Revista
-  Espírita existiam numa edição do `consolador` e noutra da FEB (tradução Guillon Ribeiro ou
-  Quintão), e dois PDFs da FEB tinham conteúdo idêntico sob nomes diferentes. Ficou só a edição da
-  FEB, por ser a tradução de referência; os descartes também estão em `rag/excluidas.csv`
-  (`motivo=duplicata_edicao` ou `arquivo_duplicado`).
-- Essa limpeza baixou o `eval` de R@5 0,88 para 0,64. Duas causas, achadas ao investigar:
-  1. **Bug de chunking nas edições "WEB" da FEB, corrigido.** O número da pergunta vinha num
-     parágrafo isolado do PDF ("1." numa linha, "Que é Deus?" na seguinte — layout em coluna), e às
-     vezes um cabeçalho de página repetido ("Parte Primeira – Capítulo I") se intrometia no meio de
-     uma pergunta. O detector de itens não reconhecia nada disso: no Livro dos Espíritos, só 1% dos
-     trechos ficavam marcados com o número da questão (deveria ser quase 100%), e várias perguntas
-     acabavam fatiadas ou mescladas. Com a correção (`rag/chunking.py`), cada trecho citável
-     (questão do LE, item do ESE) passou a ser exatamente um item, confirmado item a item nos 7
-     livros clássicos e nos 9 anos da Revista Espírita reingeridos. Isso levou o `eval` de R@1 0,28
-     para 0,32 e o MRR de 0,42 para 0,45; o R@5 não mudou.
-  2. **Perda da redundância das duplicatas, sem solução — é o preço esperado da limpeza.** Com duas
-     edições do mesmo livro no banco, uma pergunta tinha duas chances de acertar a passagem certa;
-     com uma só, só uma. Nas perguntas mais genéricas (definição de Deus, livre-arbítrio), outras
-     obras do acervo (apostilas da FEB, "Estudo Aprofundado da Doutrina Espírita") competem pelo
-     mesmo espaço vetorial e às vezes ficam à frente do Livro dos Espíritos. Confirmado manualmente:
-     a frase esperada aparece, literal, na edição mantida — ela só não entra no top 5 para certas
-     perguntas. BM25 (Fase 2) é a aposta para resgatar esses casos por palavra-chave exata.
-- **Fase 2 concluída: BM25 real.** O `ts_rank`/`tsvector` do Postgres foi trocado pelo `pg_search`
-  da ParadeDB (índice BM25 de verdade, com IDF). A imagem do Postgres mudou de
-  `pgvector/pgvector:pg17` para `paradedb/paradedb:0.26.3-pg17` (mesma versão do Postgres, pgvector
-  incluído); `sql/002_bm25.sql` cria a extensão, uma coluna gerada sem acento
-  (`conteudo_simples`) e o índice BM25 (tokenizer `icu`, stemmer `Portuguese`). A busca textual usa
-  `paradedb.match(..., conjunction_mode => true)` (todas as palavras, E), que é a forma seca de
-  passar texto do usuário sem risco de injeção na sintaxe de consulta do `pg_search`. O vetor
-  continua perdendo termos raros isolados ("aeróbus" trazia "aeronauta"); a busca textual acha —
-  nas 4 perguntas de palavra-chave do `eval`, BM25 acerta a posição 1 ou 2, igual ou melhor que o
-  `ts_rank` antigo.
-- **Achado:** com BM25 de verdade, a híbrida (RRF) deixou de piorar perguntas em linguagem natural
-  — ela empata com o vetorial puro nas 25 perguntas (R@5 0,56 nas duas), contra uma diferença clara
-  quando a textual era `ts_rank`. Ainda não é evidência suficiente (25 perguntas é pouco) para trocar
-  o modo `auto` por "híbrida sempre", mas é um motivo para reavaliar isso quando o conjunto de
-  avaliação crescer.
-- O reranker melhora o 1º lugar, mas piora o top 5/10: prefere as apostilas da FEB que citam a
-  passagem à obra original. Fica desligado (`RERANK_PROVIDER=none`); ligue com
-  `RERANK_PROVIDER=local` para testar.
+- [x] **Fase 1: pipeline RAG.** Coleta, extração, chunking, busca vetorial e resposta citada
+- [x] **Fase 2: BM25 real.** Busca híbrida com ParadeDB `pg_search`
+- [x] **Interface web.** Chat com citações clicáveis, catálogo de obras, busca de trechos, tema claro e escuro
+- [ ] **Testes com usuários.** Coletar perguntas reais para a avaliação
+- [ ] **Fase 3: grafo de conhecimento.** Ontologia de conceitos ligada às passagens (em andamento)
+- [ ] **Fase 4: agentes.** Histórico, Doutrinário e de Citação, com checagem cruzada de fontes (em andamento)
+- [ ] **Produção.** Site público numa VM com GPU ou API hospedada
 
-Geração (`ask`, mesmas 6 passagens): `qwen3:14b` responde em 2 a 6 s; `gemma3:12b` em ~7 s, cita
-mais trechos e é mais detalhado. Ambos citaram só trechos existentes nos testes.
+Detalhes e pendências: [`docs/status-e-proximos-passos.md`](docs/status-e-proximos-passos.md).
 
-## Usar a IA em outros processos
+## Participe
 
-```python
-from ia import IA
-ia = IA()                       # perfil de IA_PERFIL (padrão dev)
-ia.chat([{"role": "user", "content": "Resuma: ..."}], raciocinio="none")
-ia.chat(mensagens, esquema={...JSON Schema...})   # saída estruturada, já decodificada
-ia.embed(["texto 1", "texto 2"])
+O Saber Maior é construído em conjunto, e **não é preciso programar para ajudar**.
+
+**Se você estuda a doutrina**
+- **Escreva perguntas de avaliação.** Uma pergunta, a obra e a frase que a resposta certa deve conter.
+  É a forma mais direta de melhorar a busca. [Abrir uma pergunta de avaliação](https://github.com/arcade-metrics/sabermaior/issues/new?template=pergunta-avaliacao.yml)
+- **Aponte erros nas obras.** Título, autor ou médium errados, sumário quebrado, citação que não
+  confere com o texto. [Relatar um erro em obra](https://github.com/arcade-metrics/sabermaior/issues/new?template=erro-em-obra.yml)
+- **Revise a ontologia de conceitos** da [Fase 3](docs/proposta-ontologia-fase3.md): a hierarquia e
+  as relações fazem sentido doutrinariamente?
+- **Use e critique a interface**, inclusive o Manifesto.
+
+**Se você desenvolve**
+- Testes automatizados para extração, chunking e busca (hoje só existe o `eval`)
+- Reranker que não prefira apostilas à obra original
+- Grafo de conceitos, agentes e interface (React + TypeScript)
+
+**Se você tem infraestrutura**
+- GPU ou VM para servir o modelo em produção
+
+Comece pelo [**CONTRIBUTING.md**](CONTRIBUTING.md). Dúvidas, sugestões e críticas:
+[edu@arcademetrics.com](mailto:edu@arcademetrics.com) ou uma [issue](https://github.com/arcade-metrics/sabermaior/issues).
+
+Também ajuda muito dar uma ⭐ no repositório e indicar o projeto a grupos de estudo.
+
+## Rodar localmente
+
+Requisitos: Python 3.11+, Docker e [Ollama](https://ollama.com/) (uma GPU com ~12 GB de VRAM é
+recomendada para a geração).
+
+```bash
+git clone https://github.com/arcade-metrics/sabermaior.git && cd sabermaior
+cp .env.dev.example .env.dev                                   # opcional
+docker compose -f infra/docker-compose.yml up -d postgres      # PostgreSQL + pgvector + BM25
+ollama pull bge-m3 && ollama pull qwen3:14b
+pip install -e .[api]
+
+cd finder && pip install -r requirements.txt && python -m finder "livro dos espiritos" && cd ..
+espirita-rag ingest                                            # monta o banco a partir do acervo
+espirita-rag ask "Qual o objetivo da encarnação?"
 ```
 
-Ou qualquer cliente OpenAI apontado para `http://127.0.0.1:11434/v1`.
+Ambiente completo, variáveis do Ollama, perfis dev e produção, API e interface web:
+[**`docs/desenvolvimento.md`**](docs/desenvolvimento.md).
+
+## Estrutura do repositório
+
+```
+finder/    coleta do acervo nas fontes (PDFs + catálogo com procedência)
+ia/        camada de IA compatível com OpenAI (Ollama, vLLM, TEI ou API hospedada)
+rag/       extração, sumário, chunking, indexação, busca, resposta e avaliação
+grafo/     grafo de conceitos (Fase 3)
+agentes/   agentes especializados e orquestração (Fase 4)
+api/       API HTTP (FastAPI)
+web/       interface web (Vite + React + TypeScript + Tailwind)
+sql/       esquema do banco
+infra/     docker compose (dev e produção)
+docs/      arquitetura, status, ontologia e guia de desenvolvimento
+```
+
+## Licença
+
+- **Código:** [GNU AGPL-3.0](LICENSE). Você pode usar, estudar, modificar e redistribuir livremente;
+  quem publicar uma versão modificada, inclusive como site, deve abrir o código dela sob a mesma
+  licença. Assim o projeto e todos os seus derivados continuam livres.
+- **Documentação, conjunto de avaliação e ontologia** (`docs/`, `rag/avaliacao.jsonl`, `grafo/`
+  sementes): [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.pt_BR).
+- **As obras espíritas** não fazem parte do repositório e seguem os direitos e as condições de
+  distribuição de cada fonte.
+
+---
+
+<p align="center">
+  Mantido pela <a href="mailto:edu@arcademetrics.com">ArcadeMetrics</a>.
+</p>

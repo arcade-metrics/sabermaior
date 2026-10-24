@@ -1,0 +1,73 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* Tons de azul; o tema (claro/escuro) troca só as variáveis abaixo. */
+@theme {
+  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-fundo: var(--fundo);
+  --color-lateral: var(--lateral);
+  --color-caixa: var(--caixa);
+  --color-balao: var(--balao);
+  --color-texto: var(--texto);
+  --color-suave: var(--suave);
+  --color-borda: var(--borda);
+  --color-destaque: var(--destaque);
+  --color-destaque-forte: var(--destaque-forte);
+  --color-sobre-destaque: var(--sobre-destaque);
+  --color-erro: var(--erro);
+}
+
+:root,
+:root[data-theme='light'] {
+  --fundo: #ffffff;
+  --lateral: #f5f7fb;
+  --caixa: #ffffff;
+  --balao: #e9f0fe;
+  --texto: #111827;
+  --suave: #6b7280;
+  --borda: #e3e7ee;
+  --destaque: #2563eb;
+  --destaque-forte: #1d4ed8;
+  --sobre-destaque: #ffffff;
+  --erro: #c2410c;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --fundo: #15171c;
+    --lateral: #0f1115;
+    --caixa: #1f2229;
+    --balao: #1e2b45;
+    --texto: #e6e8ec;
+    --suave: #9298a3;
+    --borda: #2b2f38;
+    --destaque: #60a5fa;
+    --destaque-forte: #93c5fd;
+    --sobre-destaque: #0b1220;
+    --erro: #fb923c;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --fundo: #15171c;
+  --lateral: #0f1115;
+  --caixa: #1f2229;
+  --balao: #1e2b45;
+  --texto: #e6e8ec;
+  --suave: #9298a3;
+  --borda: #2b2f38;
+  --destaque: #60a5fa;
+  --destaque-forte: #93c5fd;
+  --sobre-destaque: #0b1220;
+  --erro: #fb923c;
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-fundo text-texto font-sans antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-tap-highlight-color: transparent;
+}

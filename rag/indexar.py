@@ -17,6 +17,8 @@ from .extracao import CONFIG_FTS, extrair, idioma
 LOTE_EMBEDDINGS = 32
 # Traduções e duplicatas de obras que já existem em pt-BR: ficam fora do banco.
 EXCLUIDAS = Path(__file__).with_name("excluidas.csv")
+# Categorias do catálogo que ficam no banco mas fora de toda consulta (obras.oculta).
+OCULTAS = Path(__file__).with_name("ocultas.csv")
 
 
 def slug(texto, limite=50):
@@ -47,6 +49,25 @@ def ler_excluidas():
         return {}
     with open(EXCLUIDAS, encoding="utf-8", newline="") as f:
         return {l["sha256"]: l for l in csv.DictReader(f, delimiter=";")}
+
+
+def ler_ocultas():
+    if not OCULTAS.exists():
+        return []
+    with open(OCULTAS, encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f, delimiter=";"))
+
+
+def aplicar_ocultas(conn):
+    """Marca obras.oculta conforme ocultas.csv (fonte + categoria do catálogo,
+    gravada no manifesto). Tirar uma linha do CSV e rodar de novo reexibe a
+    obra. Devolve (obras ocultas, trechos ocultos)."""
+    chaves = [f"{r['fonte']}/{r['categoria']}" for r in ler_ocultas()]
+    with conn.transaction():
+        conn.execute("UPDATE obras SET oculta = coalesce(fonte || '/' || (manifesto->>'categoria') = ANY(%s), false)",
+                     (chaves,))
+    return conn.execute("SELECT count(DISTINCT o.id), count(t.id) FROM obras o "
+                        "LEFT JOIN trechos t ON t.obra_id = o.id WHERE o.oculta").fetchone()
 
 
 def cabecalho(manifesto, meta):

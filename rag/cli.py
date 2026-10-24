@@ -3,6 +3,7 @@
 Exemplos:
   espirita-rag init-db
   espirita-rag ingest --filtro "livro dos espiritos" --limite 3
+  espirita-rag ocultar
   espirita-rag parse-toc --file livro.pdf --output-manifest manifesto.json
   espirita-rag search "Que é Deus?"
   espirita-rag ask "Qual a diferença entre alma e Espírito?"
@@ -18,6 +19,9 @@ from pathlib import Path
 
 from ia import IA, carregar
 from ia.config import RAIZ
+
+from agentes import responder as responder_agentes
+from grafo import consulta as grafo_consulta
 
 from . import avaliacao, db, indexar, sumario
 from .busca import buscar, referencia
@@ -74,7 +78,18 @@ def cmd_ingest(args):
             if n == 0:
                 print("  já indexado (use --refazer)", flush=True)
             total += n
-    print(f"Fim: {total} chunks em {time.monotonic() - inicio:.0f}s")
+        obras, trechos = indexar.aplicar_ocultas(conn)
+    print(f"Fim: {total} chunks em {time.monotonic() - inicio:.0f}s; ocultas: {obras} obras ({trechos} trechos)")
+
+
+def cmd_ocultar(args):
+    ia = _ia(args)
+    with db.conectar(ia.config) as conn:
+        obras, trechos = indexar.aplicar_ocultas(conn)
+        print(f"{obras} obras ocultas ({trechos} trechos), conforme {indexar.OCULTAS.name}:")
+        for linha in conn.execute("SELECT fonte, manifesto->>'categoria', count(*) FROM obras WHERE oculta "
+                                  "GROUP BY 1, 2 ORDER BY 1, 2"):
+            print(f"  {linha[0]}/{linha[1]}: {linha[2]}")
 
 
 def cmd_parse_toc(args):
@@ -130,10 +145,62 @@ def cmd_ask(args):
     print(f"\n{ia.config.llm_model}, {time.monotonic() - inicio:.1f}s")
 
 
+def cmd_ask_agentes(args):
+    ia = _ia(args)
+    if args.modelo:
+        ia.config = dataclasses.replace(ia.config, llm_model=args.modelo)
+    inicio = time.monotonic()
+    with db.conectar(ia.config) as conn:
+        r = responder_agentes(conn, ia, args.pergunta, k=args.k, pensar=args.pensar, **_filtros(args))
+    print(f"[agente: {r['agente']}]\n")
+    print(r["resposta"])
+    print("\nFontes:")
+    for n in r["citados"]:
+        t = r["trechos"][n - 1]
+        print(f"  [{n}] {referencia(t)}  ({t['id']})")
+    if r["invalidas"]:
+        print(f"  ATENÇÃO: citações sem trecho correspondente: {r['invalidas']}")
+    if r["citacoes_nao_confirmadas"]:
+        print("  ATENÇÃO: citações entre aspas sem texto idêntico em nenhum trecho citado:")
+        for c in r["citacoes_nao_confirmadas"]:
+            print(f'    "{c}"')
+    print(f"\n{ia.config.llm_model}, {time.monotonic() - inicio:.1f}s")
+
+
 def cmd_eval(args):
     ia = _ia(args)
     with db.conectar(ia.config) as conn:
         avaliacao.rodar(conn, ia, Path(args.arquivo), k=args.k, detalhar=args.detalhar)
+
+
+def cmd_grafo_povoar(args):
+    ia = _ia(args)
+    with db.conectar(ia.config) as conn:
+        total = grafo_consulta.povoar(conn)
+        print(f"{total} conceitos (categorias/subcategorias/termos)")
+        if not args.sem_trechos:
+            n = grafo_consulta.ligar_trechos(conn, log=lambda m: print(f"  {m}", flush=True))
+            print(f"{n} ligações conceito-trecho (MENCIONA)")
+
+
+def cmd_grafo_ver(args):
+    ia = _ia(args)
+    with db.conectar(ia.config) as conn:
+        c = grafo_consulta.conceito(conn, args.conceito)
+    if not c:
+        print(f"conceito não encontrado: {args.conceito}")
+        return
+    print(f"{c['nome']} (nível {c['nivel']}, id={c['id']}, obra: {c['obra_origem'] or '-'})")
+    if c["sinonimos"]:
+        print(f"  sinônimos: {', '.join(c['sinonimos'])}")
+    if c["pai"]:
+        print(f"  pai: {c['pai']['nome']} ({c['pai']['id']})")
+    if c["filhos"]:
+        print(f"  filhos: {', '.join(f['nome'] for f in c['filhos'])}")
+    if c["trechos"]:
+        print("  trechos:")
+        for t in c["trechos"]:
+            print(f"    [{t['tipo']}] {t['titulo']}, p. {t['pagina']}: {t['trecho']}")
 
 
 def cmd_status(args):
@@ -141,8 +208,12 @@ def cmd_status(args):
     print(ia.config)
     with db.conectar(ia.config) as conn:
         for linha in conn.execute("SELECT o.idioma, count(DISTINCT o.id), count(t.id) FROM obras o "
-                                  "LEFT JOIN trechos t ON t.obra_id = o.id GROUP BY 1 ORDER BY 3 DESC"):
+                                  "LEFT JOIN trechos t ON t.obra_id = o.id WHERE NOT o.oculta "
+                                  "GROUP BY 1 ORDER BY 3 DESC"):
             print(f"  {linha[0]}: {linha[1]} obras, {linha[2]} trechos")
+        obras, trechos = conn.execute("SELECT count(DISTINCT o.id), count(t.id) FROM obras o "
+                                      "LEFT JOIN trechos t ON t.obra_id = o.id WHERE o.oculta").fetchone()
+        print(f"  ocultas (rag/ocultas.csv): {obras} obras, {trechos} trechos")
         for linha in conn.execute("SELECT modelo_embedding, count(*) FROM trechos GROUP BY 1"):
             print(f"  modelo {linha[0]}: {linha[1]} trechos")
 
@@ -166,6 +237,9 @@ def main(argv=None):
     s.add_argument("--sem-llm", action="store_true", help="não usa a LLM para metadados e sumário")
     s.set_defaults(func=cmd_ingest)
 
+    s = sub.add_parser("ocultar", help="aplica rag/ocultas.csv: obras indexadas que nenhuma consulta usa")
+    s.set_defaults(func=cmd_ocultar)
+
     s = sub.add_parser("parse-toc", help="gera o manifesto (sumário localizado) de um PDF para revisão")
     s.add_argument("--file", required=True)
     s.add_argument("--output-manifest")
@@ -188,6 +262,15 @@ def main(argv=None):
     sub.choices["ask"].add_argument("--pensar", action="store_true", help="liga o modo de raciocínio do modelo")
     sub.choices["ask"].add_argument("--modelo", help="modelo de chat (sobrepõe LLM_MODEL)")
 
+    s = sub.add_parser("ask-agentes", help="(Fase 4) responde via Agente Histórico/Doutrinário + checagem de citações")
+    s.add_argument("pergunta")
+    s.add_argument("-k", type=int, default=8)
+    s.add_argument("--obra", help="id da obra ou parte do título")
+    s.add_argument("--idioma", default="auto")
+    s.add_argument("--pensar", action="store_true")
+    s.add_argument("--modelo")
+    s.set_defaults(func=cmd_ask_agentes)
+
     s = sub.add_parser("eval", help="recall@k do conjunto de perguntas de avaliação")
     s.add_argument("--arquivo", default=str(Path(__file__).with_name("avaliacao.jsonl")))
     s.add_argument("-k", type=int, default=10)
@@ -196,6 +279,14 @@ def main(argv=None):
 
     s = sub.add_parser("status", help="configuração ativa e contagem do banco")
     s.set_defaults(func=cmd_status)
+
+    s = sub.add_parser("grafo-povoar", help="(Fase 3) insere a taxonomia semente e liga a trechos")
+    s.add_argument("--sem-trechos", action="store_true", help="só insere os conceitos, sem ligar a trechos")
+    s.set_defaults(func=cmd_grafo_povoar)
+
+    s = sub.add_parser("grafo-ver", help="(Fase 3) mostra um conceito, seus vizinhos e trechos")
+    s.add_argument("conceito", help="id (slug) ou nome do conceito")
+    s.set_defaults(func=cmd_grafo_ver)
 
     args = p.parse_args(argv)
     args.func(args)
